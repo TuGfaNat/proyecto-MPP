@@ -2,10 +2,10 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 
 /**
- * Store para la gestión de cargos del Manual de Organización y Funciones (MOF)
+ * Store para la gestión de cargos del Manual de Perfiles de Puestos (MPP)
  */
-export const useAllCargosMofStore = defineStore(
-    "cargos_mof",
+export const useAllCargosMppStore = defineStore(
+    "cargos_mpp",
     () => {
         // --- Estado (State) ---
         const cargos = ref([]);      // Listado de cargos obtenidos de la API

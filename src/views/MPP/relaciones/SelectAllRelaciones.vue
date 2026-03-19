@@ -1,9 +1,9 @@
-<script setup>
+﻿<script setup>
 import { onMounted } from 'vue';
-import { useAllRelacionesMofStore } from '../../../stores/relaciones_mof';
+import { useAllRelacionesMppStore } from '../../../stores/relaciones_mpp';
 
 const model = defineModel();
-const relacionesStore = useAllRelacionesMofStore();
+const relacionesStore = useAllRelacionesMppStore();
 
 onMounted(async () => {
     if (relacionesStore.relaciones.length === 0) {
@@ -15,7 +15,7 @@ onMounted(async () => {
 <template>
     <v-select 
         v-model="model"
-        label="Relación" 
+        label="RelaciÃ³n" 
         :items="relacionesStore.relaciones" 
         item-title="description" 
         item-value="value" 

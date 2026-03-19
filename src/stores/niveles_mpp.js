@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export const useAllNivelesMofStore = defineStore(
-  "niveles_mof",
+export const useAllNivelesMppStore = defineStore(
+  "niveles_mpp",
   () => {
     const niveles = ref([]);
     const loading = ref(false);
     const error = ref(null);
-    const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mof/niveles";
+    const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp/niveles";
 
     const getFetchNiveles = async () => {
       loading.value = true;

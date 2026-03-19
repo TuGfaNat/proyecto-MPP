@@ -1,9 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import ListarUnidades from '../views/MOF/ListarUnidades.vue'
-import RegistrarUnidad from '../views/MOF/RegistrarUnidad.vue'
-import TreeUnidades from '../views/MOF/TreeUnidades.vue'
-import OrganigramaView from '../views/MOF/OrganigramaView.vue'
-import OrganigramaView2 from '../views/MOF/OrganigramaView2.vue'
+import ListarUnidades from '../views/MPP/ListarUnidades.vue'
+import RegistrarUnidad from '../views/MPP/RegistrarUnidad.vue'
+import TreeUnidades from '../views/MPP/TreeUnidades.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -19,54 +17,29 @@ const router = createRouter({
       component: () => import('../views/Usuarios.vue')
     },
     {
-      path: '/productos',
-      name: 'productos',
-      component: () => import('../views/Productos.vue')
-    },
-    {
-      path: '/reportes/ejecutivo',
-      name: 'dashboard_ejecutivo',
-      component: () => import('../views/MOF/DashboardEjecutivo.vue')
-    },
-    {
-      path: '/reportes/facultativo',
-      name: 'dashboard_facultativo',
-      component: () => import('../views/MOF/DashboardFacultativo.vue')
-    },
-    {
-      path: '/reportes/operativo',
-      name: 'dashboard_operativo',
-      component: () => import('../views/MOF/DashboardOperativo.vue')
-    },
-    {
       path: '/configuracion',
       name: 'configuracion',
       component: () => import('../views/Configuracion.vue')
     },
     {
-      path:"/mof/listar-unidades",
+      path:"/mpp/listar-unidades",
       name:'listar_unidades',
       component: ListarUnidades
     },
     {
-        path:"/mof/registrar-unidad",
+        path:"/mpp/registrar-unidad",
         name:"registro_unidad",
         component: RegistrarUnidad
     },
     {
-        path:"/mof/arbol-unidades",
+        path:"/mpp/arbol-unidades",
         name:"tree_unidades",
         component:TreeUnidades
     },
     {
-      path:"/mof/organigrama-unidades",
-      name:"organigrama_unidades",
-      component: OrganigramaView
-    },
-    {
-      path:"/mof/organigrama-unidades-2",
-      name:"organigrama_unidades_2",
-      component: OrganigramaView2
+      path: "/mpp/diagrama-flujos",
+      name: "diagrama_flujos",
+      component: () => import('../views/MPP/DisenadorFlujos.vue')
     }
   ]
 })

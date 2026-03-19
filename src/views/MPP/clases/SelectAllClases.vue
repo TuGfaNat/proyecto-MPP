@@ -1,9 +1,9 @@
-<script setup>
+﻿<script setup>
 import { onMounted } from 'vue';
-import { useAllClasesMofStore } from '../../../stores/clases_mof';
+import { useAllClasesMppStore } from '../../../stores/clases_mpp';
 
 const model = defineModel();
-const clasesStore = useAllClasesMofStore();
+const clasesStore = useAllClasesMppStore();
 
 onMounted(async () => {
     if (clasesStore.clases.length === 0) {
@@ -22,3 +22,4 @@ onMounted(async () => {
         v-bind="$attrs"
     ></v-select>
 </template>
+

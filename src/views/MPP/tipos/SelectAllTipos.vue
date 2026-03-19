@@ -1,9 +1,9 @@
-<script setup>
+﻿<script setup>
 import { onMounted } from 'vue';
-import { useAllTiposMofStore } from '../../../stores/tipos_mof';
+import { useAllTiposMppStore } from '../../../stores/tipos_mpp';
 
 const model = defineModel();
-const tiposStore = useAllTiposMofStore();
+const tiposStore = useAllTiposMppStore();
 
 onMounted(async () => {
     if (tiposStore.tipos.length === 0) {
@@ -22,3 +22,4 @@ onMounted(async () => {
         v-bind="$attrs"
     ></v-select>
 </template>
+

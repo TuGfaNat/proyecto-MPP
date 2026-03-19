@@ -1,6 +1,6 @@
-<script setup>
+﻿<script setup>
 import { onMounted, computed, ref } from 'vue';
-import { useAllCargosMofStore } from '../../../stores/cargos_mof';
+import { useAllCargosMppStore } from '../../../stores/cargos_mpp';
 
 const props = defineProps({
   modelValue: {
@@ -10,9 +10,9 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue']);
 
-const cargosStore = useAllCargosMofStore();
+const cargosStore = useAllCargosMppStore();
 
-// Estados para gestión de catálogo
+// Estados para gestiÃ³n de catÃ¡logo
 const dialog = ref(false);
 const editingCargo = ref(null);
 const cargoName = ref("");
@@ -49,14 +49,14 @@ const value = computed({
   }
 });
 
-// Funciones de gestión
+// Funciones de gestiÃ³n
 function openDialog(item = null) {
   if (item) {
     editingCargo.value = item;
     cargoName.value = item.descripcion;
   } else {
     editingCargo.value = null;
-    cargoName.value = search.value; // Pre-cargar lo que el usuario escribió en la búsqueda
+    cargoName.value = search.value; // Pre-cargar lo que el usuario escribiÃ³ en la bÃºsqueda
   }
   dialog.value = true;
 }
@@ -75,7 +75,7 @@ async function saveCargo() {
     dialog.value = false;
     cargoName.value = "";
     editingCargo.value = null;
-    // Si fue creación, podrías querer seleccionarlo automáticamente, pero en multi-select es complejo
+    // Si fue creaciÃ³n, podrÃ­as querer seleccionarlo automÃ¡ticamente, pero en multi-select es complejo
   }
 }
 
@@ -132,7 +132,7 @@ onMounted(async () => {
               </v-list-item>
             </template>
 
-            <!-- Botón extra al final de la lista -->
+            <!-- BotÃ³n extra al final de la lista -->
             <template v-slot:append-item>
                 <v-divider />
                 <v-list-item @click="openDialog()" color="primary">
@@ -140,13 +140,13 @@ onMounted(async () => {
                         <v-icon color="primary">mdi-plus-circle</v-icon>
                     </template>
                     <v-list-item-title class="text-primary font-weight-bold">
-                        AÑADIR NUEVO CARGO AL CATÁLOGO
+                        AÃ‘ADIR NUEVO CARGO AL CATÃLOGO
                     </v-list-item-title>
                 </v-list-item>
             </template>
         </v-autocomplete>
 
-        <!-- Diálogo para crear/editar -->
+        <!-- DiÃ¡logo para crear/editar -->
         <v-dialog v-model="dialog" max-width="400">
             <v-card>
                 <v-card-title class="text-h6">
@@ -155,7 +155,7 @@ onMounted(async () => {
                 <v-card-text>
                     <v-text-field
                         v-model="cargoName"
-                        label="Nombre del Cargo (Catálogo)"
+                        label="Nombre del Cargo (CatÃ¡logo)"
                         variant="outlined"
                         autofocus
                         @keyup.enter="saveCargo"

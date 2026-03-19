@@ -1,13 +1,13 @@
-<!-- 
+﻿<!-- 
  Create by: Jesus Reynaldo Perez Benavides 
  phone: +591 73030203
  mail: jperezbenavides@gmail.com
  -->
 <script setup>
 import { ref, onMounted, computed } from "vue";
-import { useAllUnidadesMofStore } from "../../stores/unidades_mof";
-import { useAllTiposMofStore } from "../../stores/tipos_mof";
-import { useAllNivelesMofStore } from "../../stores/niveles_mof";
+import { useAllUnidadesMppStore } from "../../stores/unidades_mpp";
+import { useAllTiposMppStore } from "../../stores/tipos_mpp";
+import { useAllNivelesMppStore } from "../../stores/niveles_mpp";
 import { rules } from "@/utils/rules";
 import SelectAllRelaciones from "./relaciones/SelectAllRelaciones.vue";
 import SelectAllTipos from "./tipos/SelectAllTipos.vue";
@@ -21,11 +21,11 @@ const snackbarText = ref('');
 const snackbarColor = ref('success');
 
 
-const unidadesStore = useAllUnidadesMofStore();
+const unidadesStore = useAllUnidadesMppStore();
 
-const tiposStore = useAllTiposMofStore();
+const tiposStore = useAllTiposMppStore();
 
-const NivelesStore = useAllNivelesMofStore();
+const NivelesStore = useAllNivelesMppStore();
 // Estado del modal y del item seleccionado
 const addDialog = ref(false);
 const selectedItem = ref(null);
@@ -434,3 +434,4 @@ function openAddDialog(item) {
     padding: 4px 0;
 }
 </style>
+

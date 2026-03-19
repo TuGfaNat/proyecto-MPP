@@ -1,9 +1,9 @@
-<script setup>
+﻿<script setup>
 import { onMounted } from 'vue';
-import { useAllNivelesMofStore } from '../../../stores/niveles_mof';
+import { useAllNivelesMppStore } from '../../../stores/niveles_mpp';
 
 const model = defineModel();
-const nivelesStore = useAllNivelesMofStore();
+const nivelesStore = useAllNivelesMppStore();
 
 onMounted(async () => {
     if (nivelesStore.niveles.length === 0) {
@@ -22,3 +22,4 @@ onMounted(async () => {
         v-bind="$attrs"
     ></v-select>
 </template>
+

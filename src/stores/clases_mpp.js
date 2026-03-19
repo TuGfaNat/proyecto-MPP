@@ -2,16 +2,16 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 
 /**
- * Store para la gestión de Clases (Instancias) del MOF
+ * Store para la gestión de Clases (Instancias) del MPP
  */
-export const useAllClasesMofStore = defineStore(
-    "clases_mof",
+export const useAllClasesMppStore = defineStore(
+    "clases_mpp",
     () => {
         const clases = ref([]);
         const loading = ref(false);
         const error = ref(null);
         
-        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mof/clases";
+        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp/clases";
 
         const getFetchClases = async () => {
             loading.value = true;

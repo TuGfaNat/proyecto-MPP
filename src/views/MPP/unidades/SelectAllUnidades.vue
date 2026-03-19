@@ -1,6 +1,6 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted } from 'vue';
-import { useAllUnidadesMofStore } from '../../../stores/unidades_mof';
+import { useAllUnidadesMppStore } from '../../../stores/unidades_mpp';
 
 const props = defineProps({
     modelValue: [Number, String, Array, null],
@@ -20,11 +20,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
-const undadesAllUnidadesStore = useAllUnidadesMofStore();
+const undadesAllUnidadesStore = useAllUnidadesMppStore();
 
 /**
- * Gestiona la selección bidireccional permitiendo que el componente
- * funcione tanto en formularios de creación como de edición.
+ * Gestiona la selecciÃ³n bidireccional permitiendo que el componente
+ * funcione tanto en formularios de creaciÃ³n como de ediciÃ³n.
  */
 const value = computed({
   get() {
@@ -36,15 +36,15 @@ const value = computed({
 });
 
 onMounted(async () => {
-    // Solo carga si el store está vacío para optimizar peticiones
+    // Solo carga si el store estÃ¡ vacÃ­o para optimizar peticiones
     if (undadesAllUnidadesStore.unidades.length === 0) {
         await undadesAllUnidadesStore.getFetchUnidades();
     }
 });
 
 /**
- * Filtra la lista para evitar que una unidad se seleccione a sí misma
- * (útil en dependencias funcionales o cambio de padre).
+ * Filtra la lista para evitar que una unidad se seleccione a sÃ­ misma
+ * (Ãºtil en dependencias funcionales o cambio de padre).
  */
 const filteredUnidades = computed(() => {
     const list = props.items || undadesAllUnidadesStore.unidades;
@@ -79,3 +79,4 @@ const autocompleteProps = computed(() => {
         :loading="undadesAllUnidadesStore.loading"
     />
 </template>
+

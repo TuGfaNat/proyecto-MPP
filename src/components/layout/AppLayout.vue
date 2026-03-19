@@ -4,142 +4,137 @@
  mail: jperezbenavides@gmail.com
  -->
 <script setup>
-import { ref } from 'vue'
+import { ref } from "vue";
 
-const drawer = ref(true)
+const drawer = ref(true);
 </script>
 <template>
-    <v-app>
-        <!-- Barra superior -->
-        <!-- <v-app-bar color="primary" elevation="1"> -->
-        <v-app-bar height="70">
-            <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
-            <v-app-bar-title>
-                <v-icon color="primary" size="32" class="mr-2">mdi-view-dashboard</v-icon>
-                S-MAU
-            </v-app-bar-title>
-            <v-spacer></v-spacer>
+  <v-app>
+    <!-- Barra superior -->
+    <!-- <v-app-bar color="primary" elevation="1"> -->
+    <v-app-bar height="70">
+      <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
+      <v-app-bar-title>
+        <v-icon color="primary" size="32" class="mr-2"
+          >mdi-view-dashboard</v-icon
+        >
+        S-MAU
+      </v-app-bar-title>
+      <v-spacer></v-spacer>
 
-            <!-- Nuevo iconos a la derecha -->
-            <v-btn icon variant="text" class="mr-2">
-                <v-icon>mdi-theme-light-dark</v-icon>
-            </v-btn>
+      <!-- Nuevo iconos a la derecha -->
+      <v-btn icon variant="text" class="mr-2">
+        <v-icon>mdi-theme-light-dark</v-icon>
+      </v-btn>
 
-            <v-badge color="error" content="45" class="mr-2">
-                <v-btn icon variant="text">
-                    <v-icon>mdi-bell</v-icon>
-                </v-btn>
-            </v-badge>
+      <v-badge color="error" content="45" class="mr-2">
+        <v-btn icon variant="text">
+          <v-icon>mdi-bell</v-icon>
+        </v-btn>
+      </v-badge>
 
-
-            <!-- Menú de usuario -->
-            <v-menu>
-                <template v-slot:activator="{ props }">
-                    <v-btn icon v-bind="props">
-                        <v-icon>mdi-account-circle</v-icon>
-                    </v-btn>
-                    <!-- <v-avatar v-bind="props" color="primary" size="40" class="ml-2">
+      <!-- Menú de usuario -->
+      <v-menu>
+        <template v-slot:activator="{ props }">
+          <v-btn icon v-bind="props">
+            <v-icon>mdi-account-circle</v-icon>
+          </v-btn>
+          <!-- <v-avatar v-bind="props" color="primary" size="40" class="ml-2">
                         <span class="text-white font-weight-bold">MU</span>
                     </v-avatar> -->
-                </template>
-                <v-list>
-                    <v-list-item title="Mi Perfil"></v-list-item>
-                    <v-list-item title="Configuración"></v-list-item>
-                    <v-divider></v-divider>
-                    <v-list-item title="Cerrar Sesión" class="text-error"></v-list-item>
-                </v-list>
+        </template>
+        <v-list>
+          <v-list-item title="Mi Perfil"></v-list-item>
+          <v-list-item title="Configuración"></v-list-item>
+          <v-divider></v-divider>
+          <v-list-item title="Cerrar Sesión" class="text-error"></v-list-item>
+        </v-list>
+      </v-menu>
+    </v-app-bar>
 
-            </v-menu>
-        </v-app-bar>
-
-        <!-- Sidebar de navegación -->
-        <v-navigation-drawer v-model="drawer" app width="260">
-            <div class="pa-2">
-                <div class="sidebar-section-title">Menú</div>
-                <v-list density="compact" nav>
-                    <v-list-item prepend-icon="mdi-view-dashboard" title="Dashboard" to="/"></v-list-item>
-                    <v-list-item prepend-icon="mdi-account-multiple" title="Usuarios" to="/usuarios"></v-list-item>
-                    <v-list-group class="no-indent" prepend-icon="mdi-package-variant" value="MOF">
-                        <template #activator="{ props }">
-                            <v-list-item v-bind="props" title="MOF"></v-list-item>
-                        </template>
-
-                        <!-- <v-list-item prepend-icon="mdi-plus-box" title="Registrar Unidad"
-                            to="/mof/registrar-unidad"></v-list-item> -->
-                        <v-list-item prepend-icon="mdi-list-box" title="Listar Unidades" to="/mof/listar-unidades">
-                        </v-list-item>
-
-                        <v-list-item prepend-icon="mdi-tree" title="Arbol Unidades"
-                            to="/mof/arbol-unidades"></v-list-item>
-
-                        <v-list-item prepend-icon="mdi-sitemap" title="Organigrama"
-                            to="/mof/organigrama-unidades"></v-list-item>
-
-                        <v-list-item prepend-icon="mdi-sitemap" title="Organigrama 2"
-                            to="/mof/organigrama-unidades-2"></v-list-item>
-
-                        <v-list-item prepend-icon="mdi-flask-outline" title="Laboratorio Nodos"
-                            to="/mof/organigrama-test"></v-list-item>
-
-
-                    </v-list-group>
-                    <v-list-group prepend-icon="mdi-chart-bar" value="Reportes">
-                        <template #activator="{ props }">
-                            <v-list-item v-bind="props" title="Reportes"></v-list-item>
-                        </template>
-
-                        <v-list-item 
-                            prepend-icon="mdi-view-dashboard-outline" 
-                            title="Dashboard Ejecutivo" 
-                            to="/reportes/ejecutivo">
-                        </v-list-item>
-
-                        <v-list-item 
-                            prepend-icon="mdi-domain" 
-                            title="Dashboard Facultativo" 
-                            to="/reportes/facultativo">
-                        </v-list-item>
-
-                        <v-list-item 
-                            prepend-icon="mdi-cog-outline" 
-                            title="Dashboard Operativo" 
-                            to="/reportes/operativo">
-                        </v-list-item>
-                    </v-list-group>
-                    <v-list-item prepend-icon="mdi-cog" title="Configuración" to="/configuracion"></v-list-item>
-                </v-list>
-                <!-- Sección APPS -->
-                <div class="sidebar-section-title">Sección</div>
-            </div>
-
-
-            <!-- Usuario en el footer -->
-
-            <template v-slot:append>
-                <v-divider></v-divider>
-                <div class="pa-4" style="border-top: 1px solid var(--color-border);">
-                    <v-list-item class="px-2">
-                        <template v-slot:prepend>
-                            <v-avatar color="primary" size="40">
-                                <span class="text-white">JP</span>
-                            </v-avatar>
-                        </template>
-                        <v-list-item-title class="font-weight-medium">Jesús</v-list-item-title>
-                        <v-list-item-subtitle class="text-caption">Coordinador TIC</v-list-item-subtitle>
-                        <template v-slot:append>
-                            <v-icon>mdi-power</v-icon>
-                        </template>
-                    </v-list-item>
-                </div>
+    <!-- Sidebar de navegación -->
+    <v-navigation-drawer v-model="drawer" app width="260">
+      <div class="pa-2">
+        <div class="sidebar-section-title">Menú</div>
+        <v-list density="compact" nav>
+          <v-list-item
+            prepend-icon="mdi-view-dashboard"
+            title="Dashboard"
+            to="/"
+          ></v-list-item>
+          <v-list-item
+            prepend-icon="mdi-account-multiple"
+            title="Usuarios"
+            to="/usuarios"
+          ></v-list-item>
+          <v-list-group
+            class="no-indent"
+            prepend-icon="mdi-package-variant"
+            value="MPP"
+          >
+            <template #activator="{ props }">
+              <v-list-item v-bind="props" title="MPP"></v-list-item>
             </template>
-        </v-navigation-drawer>
 
-        <!-- Contenido principal -->
-        <v-main>
-            <v-container fluid class="pa-6">
-                <router-view />
-            </v-container>
-        </v-main>
-    </v-app>
+            <v-list-item
+              prepend-icon="mdi-list-box"
+              title="Listar Unidades"
+              to="/mpp/listar-unidades"
+            >
+            </v-list-item>
+
+            <v-list-item
+              prepend-icon="mdi-tree"
+              title="Arbol Unidades"
+              to="/mpp/arbol-unidades"
+            ></v-list-item>
+
+            <v-list-item prepend-icon="mdi-vector-combine" title="Diseñador de Flujos"
+                to="/mpp/diagrama-flujos"></v-list-item>
+
+            </v-list-group>
+          
+          <v-list-item
+            prepend-icon="mdi-cog"
+            title="Configuración"
+            to="/configuracion"
+          ></v-list-item>
+        </v-list>
+        <!-- Sección APPS -->
+        <div class="sidebar-section-title">Sección</div>
+      </div>
+
+      <!-- Usuario en el footer -->
+
+      <template v-slot:append>
+        <v-divider></v-divider>
+        <div class="pa-4" style="border-top: 1px solid var(--color-border)">
+          <v-list-item class="px-2">
+            <template v-slot:prepend>
+              <v-avatar color="primary" size="40">
+                <span class="text-white">JP</span>
+              </v-avatar>
+            </template>
+            <v-list-item-title class="font-weight-medium"
+              >Jesús</v-list-item-title
+            >
+            <v-list-item-subtitle class="text-caption"
+              >Coordinador TIC</v-list-item-subtitle
+            >
+            <template v-slot:append>
+              <v-icon>mdi-power</v-icon>
+            </template>
+          </v-list-item>
+        </div>
+      </template>
+    </v-navigation-drawer>
+
+    <!-- Contenido principal -->
+    <v-main>
+      <v-container fluid class="pa-6">
+        <router-view />
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
 <style></style>

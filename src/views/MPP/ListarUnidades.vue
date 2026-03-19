@@ -1,10 +1,10 @@
-<script setup>
+﻿<script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useAllUnidadesMofStore } from '../../stores/unidades_mof'
+import { useAllUnidadesMppStore } from '../../stores/unidades_mpp'
 // En la instalación de Vuetify v3: si VDataTable está en labs, puede requerir importarlo explícitamente:
 // import { VDataTable } from 'vuetify/labs/VDataTable'
 
-const unidadesStore = useAllUnidadesMofStore();
+const unidadesStore = useAllUnidadesMppStore();
 
 //Le llamo a la API para mostrar mi componente
 onMounted(async () => {
@@ -83,3 +83,4 @@ function deleteItem(item) {
         </v-card>
     </div>
 </template>
+
