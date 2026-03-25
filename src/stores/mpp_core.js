@@ -3,105 +3,94 @@ import { ref } from "vue";
 import axios from "axios";
 
 export const useMppCoreStore = defineStore("mpp_core", () => {
-    const areas = ref([]);
+    const unidades = ref([]);
     const procesos = ref([]);
     const subprocesos = ref([]);
     const procedimientos = ref([]);
+    const pasos = ref([]); // Pasos específicos de un procedimiento
     const loading = ref(false);
     const error = ref(null);
 
-    const BASE_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp";
+    const BASE_URL_MPP = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp";
+    const BASE_URL_MOF = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mof";
 
-    // CARGAR DATOS
-    const fetchAreas = async () => {
+    // --- LECTURA (GET) ---
+    const fetchUnidades = async () => {
         loading.value = true;
         try {
-            const response = await axios.get(`${BASE_URL}/areas`);
-            areas.value = response.data;
-        } catch (err) {
-            error.value = "Error al cargar áreas: " + err.message;
-        } finally {
-            loading.value = false;
-        }
+            const response = await axios.get(`${BASE_URL_MOF}/unidades`);
+            unidades.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
     };
 
-    const fetchProcesos = async (areaId = null) => {
+    const fetchProcesos = async (unidadId) => {
         loading.value = true;
-        const url = areaId ? `${BASE_URL}/procesos/${areaId}` : `${BASE_URL}/procesos`;
         try {
-            const response = await axios.get(url);
-            procesos.value = response.data;
-        } catch (err) {
-            error.value = "Error al cargar procesos: " + err.message;
-        } finally {
-            loading.value = false;
-        }
+            const response = await axios.get(`${BASE_URL_MPP}/procesos`, { params: { unidadId } });
+            procesos.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
     };
 
-    const fetchSubprocesos = async (procesoId = null) => {
+    const fetchSubprocesos = async (procesoId) => {
         loading.value = true;
-        const url = procesoId ? `${BASE_URL}/subprocesos/${procesoId}` : `${BASE_URL}/subprocesos`;
         try {
-            const response = await axios.get(url);
-            subprocesos.value = response.data;
-        } catch (err) {
-            error.value = "Error al cargar subprocesos: " + err.message;
-        } finally {
-            loading.value = false;
-        }
+            const response = await axios.get(`${BASE_URL_MPP}/subprocesos`, { params: { procesoId } });
+            subprocesos.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
     };
 
-    const fetchProcedimientos = async (subprocesoId = null) => {
+    const fetchProcedimientos = async (subprocesoId) => {
         loading.value = true;
-        const url = subprocesoId ? `${BASE_URL}/procedimientos/${subprocesoId}` : `${BASE_URL}/procedimientos`;
         try {
-            const response = await axios.get(url);
-            procedimientos.value = response.data;
-        } catch (err) {
-            error.value = "Error al cargar procedimientos: " + err.message;
-        } finally {
-            loading.value = false;
-        }
+            const response = await axios.get(`${BASE_URL_MPP}/procedimientos`, { params: { subprocesoId } });
+            procedimientos.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
     };
 
-    // GUARDAR DATOS (POST)
-    const saveProceso = async (parentId, descripcion) => {
+    // Obtener los pasos ya guardados de un procedimiento
+    const fetchPasos = async (procedimientoId) => {
+        loading.value = true;
         try {
-            await axios.post(`${BASE_URL}/procesos`, { parentId, descripcion });
-            await fetchProcesos(parentId); // Recargar
+            const response = await axios.get(`${BASE_URL_MPP}/pasos`, { params: { procedimientoId } });
+            pasos.value = response.data.data || response.data;
+            return pasos.value;
+        } catch (err) { error.value = err.message; return []; }
+        finally { loading.value = false; }
+    };
+
+    // --- ESCRITURA (POST/PUT/DELETE) ---
+    const saveProceso = (data) => axios.post(`${BASE_URL_MPP}/procesos`, data);
+    const saveSubproceso = (data) => axios.post(`${BASE_URL_MPP}/subprocesos`, data);
+    const saveProcedimiento = (data) => axios.post(`${BASE_URL_MPP}/procedimientos`, data);
+    
+    // Guardar o actualizar la secuencia de pasos
+    const saveFlujoCompleto = async (procedimientoId, listaPasos) => {
+        loading.value = true;
+        try {
+            // Enviamos toda la secuencia al endpoint de pasos
+            await axios.post(`${BASE_URL_MPP}/pasos/bulk`, {
+                procedimientoId,
+                pasos: listaPasos
+            });
             return true;
         } catch (err) {
-            error.value = "Error al guardar proceso: " + err.message;
+            error.value = "Error al guardar el flujo: " + err.message;
             return false;
+        } finally {
+            loading.value = false;
         }
     };
 
-    const saveSubproceso = async (parentId, descripcion) => {
-        try {
-            await axios.post(`${BASE_URL}/subprocesos`, { parentId, descripcion });
-            await fetchSubprocesos(parentId);
-            return true;
-        } catch (err) {
-            error.value = "Error al guardar subproceso: " + err.message;
-            return false;
-        }
-    };
-
-    const saveProcedimiento = async (parentId, descripcion) => {
-        try {
-            await axios.post(`${BASE_URL}/procedimientos`, { parentId, descripcion });
-            await fetchProcedimientos(parentId);
-            return true;
-        } catch (err) {
-            error.value = "Error al guardar procedimiento: " + err.message;
-            return false;
-        }
-    };
+    const deletePaso = (pasoId) => axios.delete(`${BASE_URL_MPP}/pasos/${pasoId}`);
 
     return {
-        areas, procesos, subprocesos, procedimientos,
+        unidades, procesos, subprocesos, procedimientos, pasos,
         loading, error,
-        fetchAreas, fetchProcesos, fetchSubprocesos, fetchProcedimientos,
-        saveProceso, saveSubproceso, saveProcedimiento
+        fetchUnidades, fetchProcesos, fetchSubprocesos, fetchProcedimientos, fetchPasos,
+        saveProceso, saveSubproceso, saveProcedimiento, saveFlujoCompleto, deletePaso
     };
 });
