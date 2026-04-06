@@ -11,7 +11,7 @@ export const useAllClasesMppStore = defineStore(
         const loading = ref(false);
         const error = ref(null);
         
-        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp/clases";
+        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mof/clases";
 
         const getFetchClases = async () => {
             loading.value = true;
