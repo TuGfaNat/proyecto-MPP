@@ -8,6 +8,13 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const subprocesos = ref([]);
     const procedimientos = ref([]);
     const pasos = ref([]); // Pasos específicos de un procedimiento
+    const currentContext = ref({
+        unidad: null,
+        proceso: null,
+        subproceso: null,
+        procedimiento: null
+    });
+
     const loading = ref(false);
     const error = ref(null);
 
@@ -63,15 +70,33 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     };
 
     // --- ESCRITURA (POST/PUT/DELETE) ---
-    const saveProceso = (data) => axios.post(`${BASE_URL_MPP}/procesos`, data);
+    const saveProceso = async (data) => {
+        try {
+            const res = await axios.post(`${BASE_URL_MPP}/procesos`, data);
+            return res.data.data || res.data;
+        } catch (err) { error.value = err.message; throw err; }
+    };
+
+    const saveSubproceso = async (data) => {
+        try {
+            const res = await axios.post(`${BASE_URL_MPP}/subprocesos`, data);
+            return res.data.data || res.data;
+        } catch (err) { error.value = err.message; throw err; }
+    };
+
+    const saveProcedimiento = async (data) => {
+        try {
+            const res = await axios.post(`${BASE_URL_MPP}/procedimientos`, data);
+            return res.data.data || res.data;
+        } catch (err) { error.value = err.message; throw err; }
+    };
+
     const updateProceso = (id, data) => axios.put(`${BASE_URL_MPP}/procesos/${id}`, data);
     const deleteProceso = (id) => axios.delete(`${BASE_URL_MPP}/procesos/${id}`);
 
-    const saveSubproceso = (data) => axios.post(`${BASE_URL_MPP}/subprocesos`, data);
     const updateSubproceso = (id, data) => axios.put(`${BASE_URL_MPP}/subprocesos/${id}`, data);
     const deleteSubproceso = (id) => axios.delete(`${BASE_URL_MPP}/subprocesos/${id}`);
 
-    const saveProcedimiento = (data) => axios.post(`${BASE_URL_MPP}/procedimientos`, data);
     const updateProcedimiento = (id, data) => axios.put(`${BASE_URL_MPP}/procedimientos/${id}`, data);
     const deleteProcedimiento = (id) => axios.delete(`${BASE_URL_MPP}/procedimientos/${id}`);
     
@@ -97,6 +122,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
 
     return {
         unidades, procesos, subprocesos, procedimientos, pasos,
+        currentContext,
         loading, error,
         fetchUnidades, fetchProcesos, fetchSubprocesos, fetchProcedimientos, fetchPasos,
         saveProceso, updateProceso, deleteProceso,
