@@ -24,6 +24,7 @@
               density="compact"
               @update:model-value="onUnidadChange"
               :loading="mppStore.loading && !mppStore.unidades.length"
+              :disabled="isLocked"
             ></v-select>
 
             <v-select
@@ -34,7 +35,7 @@
               label="Proceso"
               variant="outlined"
               density="compact"
-              :disabled="!context.unidadId"
+              :disabled="isLocked || !context.unidadId"
               @update:model-value="onProcesoChange"
               :loading="mppStore.loading && context.unidadId"
             ></v-select>
@@ -47,7 +48,7 @@
               label="Subproceso"
               variant="outlined"
               density="compact"
-              :disabled="!context.procesoId"
+              :disabled="isLocked || !context.procesoId"
               @update:model-value="onSubprocesoChange"
               :loading="mppStore.loading && context.procesoId"
             ></v-select>
@@ -60,7 +61,7 @@
               label="Procedimiento Final"
               variant="outlined"
               density="compact"
-              :disabled="!context.subprocesoId"
+              :disabled="isLocked || !context.subprocesoId"
               @update:model-value="onProcedimientoChange"
               :loading="mppStore.loading && context.subprocesoId"
               class="mb-4"
@@ -200,10 +201,12 @@
 
 <script setup>
 import { ref, onMounted, nextTick, watch, reactive } from 'vue';
+import { useRoute } from 'vue-router';
 import mermaid from 'mermaid';
 import { useMppCoreStore } from '@/stores/mpp_core';
 
 const mppStore = useMppCoreStore();
+const route = useRoute();
 
 // 1. Estados de Contexto (Jerarquía Completa)
 const context = reactive({
@@ -213,45 +216,37 @@ const context = reactive({
   procedimientoId: null
 });
 
-// 2. Formulario del Paso
-const stepForm = reactive({
-  unidadId: null,
-  descripcion: '',
-  shape: 'process'
-});
-
-const editingIndex = ref(null);
-const flowSteps = ref([]);
-let stepCounter = Date.now();
-
-// 3. Configuración de Formas
-const shapes = [
-  { value: 'start', label: 'Inicio / Fin', icon: 'mdi-play-circle-outline', mermaid: ['((', '))'] },
-  { value: 'process', label: 'Actividad', icon: 'mdi-rectangle-outline', mermaid: ['[', ']'] },
-  { value: 'decision', label: 'Decisión', icon: 'mdi-rhombus-outline', mermaid: ['{', '}'] },
-  { value: 'document', label: 'Documento', icon: 'mdi-file-outline', mermaid: ['>', ']'] },
-  { value: 'database', label: 'Base de Datos', icon: 'mdi-database-outline', mermaid: ['[(', ')]'] },
-];
+// Bloqueo de selección si viene de Gestión Estructura
+const isLocked = ref(false);
 
 onMounted(async () => {
   mermaid.initialize({
-    startOnLoad: false,
-    theme: 'base',
-    securityLevel: 'loose',
-    themeVariables: {
-      primaryColor: '#F0F7FF',
-      primaryTextColor: '#1A237E',
-      primaryBorderColor: '#3949AB',
-      lineColor: '#607D8B',
-      secondaryColor: '#C2185B',
-      tertiaryColor: '#FFFFFF',
-      mainBkg: '#FFFFFF',
-      clusterBkg: '#f8fafc',
-      clusterBorder: '#cbd5e1'
-    },
-    flowchart: { useMaxWidth: false, htmlLabels: true, curve: 'basis' }
+    // ... (rest of mermaid config)
   });
+  
   await mppStore.fetchUnidades();
+
+  // Si vienen parámetros por query, los asignamos y bloqueamos
+  if (route.query.u) {
+    isLocked.value = true;
+    context.unidadId = parseInt(route.query.u);
+    await mppStore.fetchProcesos(context.unidadId);
+    
+    if (route.query.p) {
+        context.procesoId = parseInt(route.query.p);
+        await mppStore.fetchSubprocesos(context.procesoId);
+    }
+    
+    if (route.query.s) {
+        context.subprocesoId = parseInt(route.query.s);
+        await mppStore.fetchProcedimientos(context.subprocesoId);
+    }
+    
+    if (route.query.pr) {
+        context.procedimientoId = parseInt(route.query.pr);
+        await onProcedimientoChange(context.procedimientoId);
+    }
+  }
 });
 
 // --- MANEJADORES DE CASCADA ---

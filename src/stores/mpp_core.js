@@ -64,8 +64,16 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
 
     // --- ESCRITURA (POST/PUT/DELETE) ---
     const saveProceso = (data) => axios.post(`${BASE_URL_MPP}/procesos`, data);
+    const updateProceso = (id, data) => axios.put(`${BASE_URL_MPP}/procesos/${id}`, data);
+    const deleteProceso = (id) => axios.delete(`${BASE_URL_MPP}/procesos/${id}`);
+
     const saveSubproceso = (data) => axios.post(`${BASE_URL_MPP}/subprocesos`, data);
+    const updateSubproceso = (id, data) => axios.put(`${BASE_URL_MPP}/subprocesos/${id}`, data);
+    const deleteSubproceso = (id) => axios.delete(`${BASE_URL_MPP}/subprocesos/${id}`);
+
     const saveProcedimiento = (data) => axios.post(`${BASE_URL_MPP}/procedimientos`, data);
+    const updateProcedimiento = (id, data) => axios.put(`${BASE_URL_MPP}/procedimientos/${id}`, data);
+    const deleteProcedimiento = (id) => axios.delete(`${BASE_URL_MPP}/procedimientos/${id}`);
     
     // Guardar o actualizar la secuencia de pasos
     const saveFlujoCompleto = async (procedimientoId, listaPasos) => {
@@ -91,6 +99,9 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         unidades, procesos, subprocesos, procedimientos, pasos,
         loading, error,
         fetchUnidades, fetchProcesos, fetchSubprocesos, fetchProcedimientos, fetchPasos,
-        saveProceso, saveSubproceso, saveProcedimiento, saveFlujoCompleto, deletePaso
+        saveProceso, updateProceso, deleteProceso,
+        saveSubproceso, updateSubproceso, deleteSubproceso,
+        saveProcedimiento, updateProcedimiento, deleteProcedimiento,
+        saveFlujoCompleto, deletePaso
     };
 });

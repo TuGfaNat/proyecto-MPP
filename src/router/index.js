@@ -37,6 +37,11 @@ const router = createRouter({
         component:TreeUnidades
     },
     {
+        path:"/mpp/gestion-mpp",
+        name:"gestion_mpp",
+        component: () => import('../views/MPP/GestionEstructura.vue')
+    },
+    {
       path: "/mpp/diagrama-flujos",
       name: "diagrama_flujos",
       component: () => import('../views/MPP/DisenadorFlujos.vue')
