@@ -7,7 +7,7 @@ export const useAllRelacionesMppStore = defineStore(
         const relaciones = ref([]);
         const loading = ref(false);
         const error = ref(null);
-        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mpp/relaciones";
+        const API_URL = "https://correspondencia.fcpn.edu.bo/umsa-core/api/v1/mof/relaciones";
 
         const getFetchRelaciones = async () => {
             loading.value = true;

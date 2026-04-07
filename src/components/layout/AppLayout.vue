@@ -5,8 +5,14 @@
  -->
 <script setup>
 import { ref } from "vue";
+import { useAuthStore } from "../../stores/auth";
 
+const authStore = useAuthStore();
 const drawer = ref(true);
+
+const handleLogout = () => {
+  authStore.logout();
+};
 </script>
 <template>
   <v-app>
@@ -47,7 +53,7 @@ const drawer = ref(true);
           <v-list-item title="Mi Perfil"></v-list-item>
           <v-list-item title="Configuración"></v-list-item>
           <v-divider></v-divider>
-          <v-list-item title="Cerrar Sesión" class="text-error"></v-list-item>
+          <v-list-item title="Cerrar Sesión" class="text-error" @click="handleLogout"></v-list-item>
         </v-list>
       </v-menu>
     </v-app-bar>
@@ -89,8 +95,12 @@ const drawer = ref(true);
               to="/mpp/arbol-unidades"
             ></v-list-item>
 
-            <v-list-item prepend-icon="mdi-vector-combine" title="Diseñador de Flujos"
-                to="/mpp/diagrama-flujos"></v-list-item>
+            <v-list-item
+              prepend-icon="mdi-vector-polyline"
+              title="Diseñador de Flujos"
+              to="/mpp/diagrama-flujos"
+              class="text-primary font-weight-bold"
+            ></v-list-item>
 
             </v-list-group>
           
@@ -112,17 +122,17 @@ const drawer = ref(true);
           <v-list-item class="px-2">
             <template v-slot:prepend>
               <v-avatar color="primary" size="40">
-                <span class="text-white">JP</span>
+                <span class="text-white">{{ authStore.user?.name?.substring(0,2).toUpperCase() || 'US' }}</span>
               </v-avatar>
             </template>
             <v-list-item-title class="font-weight-medium"
-              >Jesús</v-list-item-title
+              >{{ authStore.user?.name || 'Usuario' }}</v-list-item-title
             >
             <v-list-item-subtitle class="text-caption"
               >Coordinador TIC</v-list-item-subtitle
             >
             <template v-slot:append>
-              <v-icon>mdi-power</v-icon>
+              <v-icon @click="handleLogout" style="cursor: pointer;">mdi-power</v-icon>
             </template>
           </v-list-item>
         </div>

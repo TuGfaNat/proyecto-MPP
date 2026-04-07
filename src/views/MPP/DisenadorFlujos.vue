@@ -1,483 +1,276 @@
+<script setup>
+import { ref, onMounted, watch } from 'vue'
+import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { Background } from '@vue-flow/background'
+import { Controls } from '@vue-flow/controls'
+import { useMppCoreStore } from '@/stores/mpp_core'
+
+// Estilos
+import '@vue-flow/core/dist/style.css'
+import '@vue-flow/core/dist/theme-default.css'
+import '@vue-flow/controls/dist/style.css'
+
+const mppStore = useMppCoreStore()
+const { onConnect, addEdges, onNodeClick } = useVueFlow()
+
+// --- SELECCIÓN DE CONTEXTO ---
+const selectedUnidad = ref(null)
+const selectedProceso = ref(null)
+const selectedSubproceso = ref(null)
+const selectedProcedimiento = ref(null)
+
+// --- CONFIGURACIÓN DEL PRÓXIMO NODO ---
+const nextNodeData = ref({
+    label: '',
+    tipo: 'Tarea',
+    unidadEjecutoraId: null
+})
+
+const nodes = ref([])
+const edges = ref([])
+const snackbar = ref({ show: false, text: '', color: 'success' })
+
+// --- ESTADO PARA EDICIÓN DE NODO ---
+const editDialog = ref(false)
+const activeNode = ref(null)
+const nodeEditData = ref({
+    label: '',
+    tipo: 'Tarea',
+    unidadEjecutoraId: null
+})
+
+onMounted(async () => {
+    await mppStore.fetchUnidades()
+})
+
+const getItemTitle = (item) => item.nombre || item.descripcion || "Sin nombre"
+
+const getClassByType = (tipo) => {
+    switch (tipo) {
+        case 'Decisión': return 'node-decision';
+        case 'Fin': return 'node-fin';
+        case 'Inicio': return 'node-inicio';
+        default: return 'node-tarea';
+    }
+}
+
+// --- WATCHERS PARA LA JERARQUÍA ---
+watch(selectedUnidad, async (newVal) => {
+    selectedProceso.value = null
+    selectedSubproceso.value = null
+    selectedProcedimiento.value = null
+    if (newVal) await mppStore.fetchProcesos(newVal)
+})
+
+watch(selectedProceso, async (newVal) => {
+    selectedSubproceso.value = null
+    selectedProcedimiento.value = null
+    if (newVal) await mppStore.fetchSubprocesos(newVal)
+})
+
+watch(selectedSubproceso, async (newVal) => {
+    selectedProcedimiento.value = null
+    if (newVal) await mppStore.fetchProcedimientos(newVal)
+})
+
+// Cargar flujo existente al cambiar procedimiento
+watch(selectedProcedimiento, async (newVal) => {
+    if (newVal) {
+        const pasos = await mppStore.fetchPasos(newVal)
+        if (pasos?.length > 0) {
+            // Cargar Nodos
+            nodes.value = pasos.map(p => ({
+                id: p.id.toString(),
+                label: p.descripcion,
+                position: { x: p.x || 100, y: p.y || 100 },
+                class: getClassByType(p.metadata?.tipo || 'Tarea'),
+                data: p.metadata || {}
+            }))
+
+            // Reconstruir Conexiones secuenciales (de nodo i al nodo i+1)
+            const nuevasConexiones = []
+            for (let i = 0; i < nodes.value.length - 1; i++) {
+                nuevasConexiones.push({
+                    id: `e${nodes.value[i].id}-${nodes.value[i+1].id}`,
+                    source: nodes.value[i].id,
+                    target: nodes.value[i+1].id,
+                    animated: true
+                })
+            }
+            edges.value = nuevasConexiones
+        } else {
+            nodes.value = []
+            edges.value = []
+        }
+    }
+})
+
+// --- AL HACER CLIC EN UN NODO ---
+onNodeClick(({ node }) => {
+    activeNode.value = node
+    nodeEditData.value = {
+        label: node.label,
+        tipo: node.data?.tipo || 'Tarea',
+        unidadEjecutoraId: node.data?.unidadEjecutoraId || null
+    }
+    editDialog.value = true
+})
+
+const updateNodeInfo = () => {
+    if (!activeNode.value) return
+    const nodeToUpdate = nodes.value.find(n => n.id === activeNode.value.id)
+    if (nodeToUpdate) {
+        nodeToUpdate.label = nodeEditData.value.label
+        nodeToUpdate.class = getClassByType(nodeEditData.value.tipo)
+        nodeToUpdate.data = {
+            ...nodeToUpdate.data,
+            tipo: nodeEditData.value.tipo,
+            unidadEjecutoraId: nodeEditData.value.unidadEjecutoraId
+        }
+    }
+    editDialog.value = false
+    snackbar.value = { show: true, text: 'Paso actualizado', color: 'info' }
+}
+
+const deleteNode = () => {
+    if (!activeNode.value) return
+    nodes.value = nodes.value.filter(n => n.id !== activeNode.value.id)
+    // También borrar sus flechas
+    edges.value = edges.value.filter(e => e.source !== activeNode.value.id && e.target !== activeNode.value.id)
+    editDialog.value = false
+    snackbar.value = { show: true, text: 'Paso eliminado del flujo', color: 'error' }
+}
+
+const insertNode = () => {
+    if (!nextNodeData.value.label) {
+        snackbar.value = { show: true, text: 'Escribe una descripción para el paso', color: 'warning' }
+        return
+    }
+
+    const id = `node_${Date.now()}`
+    const lastNode = nodes.value.length > 0 ? nodes.value[nodes.value.length - 1] : null
+
+    const newNode = {
+        id,
+        label: nextNodeData.value.label,
+        position: { x: 250, y: nodes.value.length * 100 + 50 },
+        class: getClassByType(nextNodeData.value.tipo),
+        data: {
+            tipo: nextNodeData.value.tipo,
+            unidadEjecutoraId: nextNodeData.value.unidadEjecutoraId
+        }
+    }
+
+    nodes.value.push(newNode)
+
+    // CONEXIÓN AUTOMÁTICA AL ANTERIOR
+    if (lastNode) {
+        edges.value.push({
+            id: `e_${lastNode.id}-${newNode.id}`,
+            source: lastNode.id,
+            target: newNode.id,
+            animated: true
+        })
+    }
+
+    nextNodeData.value.label = ''
+    snackbar.value = { show: true, text: 'Paso insertado y conectado', color: 'success' }
+}
+
+onConnect((params) => addEdges([params]))
+
+const saveFlow = async () => {
+    if (!selectedProcedimiento.value) return
+    const listaPasos = nodes.value.map((node, index) => ({
+        descripcion: node.label,
+        orden: index + 1,
+        x: Math.round(node.position.x),
+        y: Math.round(node.position.y),
+        metadata: node.data
+    }))
+    const success = await mppStore.saveFlujoCompleto(selectedProcedimiento.value, listaPasos)
+    snackbar.value = { show: true, text: success ? '¡Todo guardado en la base de datos!' : 'Error al guardar', color: success ? 'success' : 'error' }
+}
+</script>
+
 <template>
-  <v-container fluid>
-    <v-row>
-      <!-- Panel de Control Izquierdo (Editor) -->
-      <v-col cols="12" md="4">
-        <v-card class="pa-4" elevation="3">
-          <v-card-title class="text-h6 d-flex align-center">
-            <v-icon color="primary" class="mr-2">mdi-pencil-ruler</v-icon>
-            Editor de Matriz MPP
-          </v-card-title>
-          <v-divider class="my-3"></v-divider>
-
-          <v-form>
-            <!-- 1. Ubicación Jerárquica Completa -->
-            <p class="text-caption font-weight-bold text-primary text-uppercase mb-2">1. Ubicación del Flujo</p>
-            
-            <v-select
-              v-model="context.unidadId"
-              :items="mppStore.unidades"
-              item-title="nombre"
-              item-value="id"
-              label="Unidad Organizacional"
-              variant="outlined"
-              density="compact"
-              @update:model-value="onUnidadChange"
-              :loading="mppStore.loading && !mppStore.unidades.length"
-              :disabled="isLocked"
-            ></v-select>
-
-            <v-select
-              v-model="context.procesoId"
-              :items="mppStore.procesos"
-              item-title="descripcion"
-              item-value="id"
-              label="Proceso"
-              variant="outlined"
-              density="compact"
-              :disabled="isLocked || !context.unidadId"
-              @update:model-value="onProcesoChange"
-              :loading="mppStore.loading && context.unidadId"
-            ></v-select>
-
-            <v-select
-              v-model="context.subprocesoId"
-              :items="mppStore.subprocesos"
-              item-title="descripcion"
-              item-value="id"
-              label="Subproceso"
-              variant="outlined"
-              density="compact"
-              :disabled="isLocked || !context.procesoId"
-              @update:model-value="onSubprocesoChange"
-              :loading="mppStore.loading && context.procesoId"
-            ></v-select>
-
-            <v-select
-              v-model="context.procedimientoId"
-              :items="mppStore.procedimientos"
-              item-title="descripcion"
-              item-value="id"
-              label="Procedimiento Final"
-              variant="outlined"
-              density="compact"
-              :disabled="isLocked || !context.subprocesoId"
-              @update:model-value="onProcedimientoChange"
-              :loading="mppStore.loading && context.subprocesoId"
-              class="mb-4"
-            ></v-select>
+    <v-row no-gutters class="fill-height overflow-hidden">
+        <!-- PANEL IZQUIERDO -->
+        <v-col cols="12" md="3" class="pa-4 border-e bg-grey-lighten-4 overflow-y-auto" style="height: calc(100vh - 70px);">
+            <div class="mb-4">
+                <h2 class="text-subtitle-1 font-weight-bold mb-2">1. UBICACIÓN</h2>
+                <v-select v-model="selectedUnidad" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id" label="Unidad" variant="solo" density="compact" hide-details class="mb-2"></v-select>
+                <v-select v-model="selectedProceso" :items="mppStore.procesos" :item-title="getItemTitle" item-value="id" label="Proceso" variant="solo" density="compact" :disabled="!selectedUnidad" hide-details class="mb-2"></v-select>
+                <v-select v-model="selectedSubproceso" :items="mppStore.subprocesos" :item-title="getItemTitle" item-value="id" label="Subproceso" variant="solo" density="compact" :disabled="!selectedProceso" hide-details class="mb-2"></v-select>
+                <v-select v-model="selectedProcedimiento" :items="mppStore.procedimientos" :item-title="getItemTitle" item-value="id" label="Procedimiento" variant="solo" density="compact" :disabled="!selectedSubproceso" color="primary"></v-select>
+            </div>
 
             <v-divider class="mb-4"></v-divider>
 
-            <!-- 2. Editor del Paso (Actividad) -->
-            <p class="text-caption font-weight-bold text-secondary text-uppercase mb-2">
-              {{ editingIndex !== null ? '2. Editando Paso #' + (editingIndex + 1) : '2. Nueva Actividad' }}
-            </p>
-            
-            <v-select
-              v-model="stepForm.unidadId"
-              :items="mppStore.unidades"
-              item-title="nombre"
-              item-value="id"
-              label="Responsable del Paso (Carril)"
-              variant="outlined"
-              density="comfortable"
-              prepend-inner-icon="mdi-account-group"
-            ></v-select>
+            <div v-if="selectedProcedimiento">
+                <h2 class="text-subtitle-1 font-weight-bold mb-2 color-primary">2. GENERADOR DE PASOS</h2>
+                <v-card elevation="2" class="pa-4 bg-white mb-4 border-primary">
+                    <p class="text-caption font-weight-bold mb-1 text-uppercase">Descripción del Paso:</p>
+                    <v-textarea v-model="nextNodeData.label" label="Ej: Revisar documentos..." variant="outlined" rows="3" auto-grow placeholder="Escribe aquí qué se hace en este paso..." class="mb-4" bg-color="blue-lighten-5"></v-textarea>
+                    
+                    <p class="text-caption font-weight-bold mb-1 text-uppercase">Tipo de Figura:</p>
+                    <v-select v-model="nextNodeData.tipo" :items="['Inicio', 'Tarea', 'Decisión', 'Fin']" variant="outlined" density="compact" class="mb-4"></v-select>
+                    
+                    <p class="text-caption font-weight-bold mb-1 text-uppercase">¿Quién lo ejecuta?:</p>
+                    <v-select v-model="nextNodeData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id" variant="outlined" density="compact" class="mb-4"></v-select>
 
-            <v-textarea
-              v-model="stepForm.descripcion"
-              label="Descripción de la Actividad"
-              variant="outlined"
-              rows="2"
-              prepend-inner-icon="mdi-text"
-              class="mb-3"
-            ></v-textarea>
-
-            <v-item-group v-model="stepForm.shape" mandatory class="d-flex justify-space-around mb-4">
-              <v-item v-for="shape in shapes" :key="shape.value" :value="shape.value" v-slot="{ isSelected, toggle }">
-                <v-tooltip bottom :text="shape.label">
-                  <template v-slot:activator="{ props }">
-                    <v-btn
-                      v-bind="props"
-                      :color="isSelected ? 'secondary' : 'grey-lighten-3'"
-                      :icon="shape.icon"
-                      @click="toggle"
-                      size="small"
-                      elevation="1"
-                    ></v-btn>
-                  </template>
-                </v-tooltip>
-              </v-item>
-            </v-item-group>
-
-            <v-btn
-              block
-              :color="editingIndex !== null ? 'orange' : 'success'"
-              class="mb-2"
-              prepend-icon="mdi-plus"
-              :disabled="!stepForm.unidadId || !stepForm.descripcion"
-              @click="handleStepAction"
-            >
-              {{ editingIndex !== null ? 'Actualizar Paso' : 'Añadir a la Matriz' }}
-            </v-btn>
-
-            <v-btn
-              v-if="editingIndex !== null"
-              block
-              variant="text"
-              @click="cancelEdit"
-            >
-              Cancelar Edición
-            </v-btn>
-          </v-form>
-        </v-card>
-
-        <v-card class="pa-4 mt-4" elevation="2" border="primary" v-if="context.procedimientoId">
-          <v-btn
-            block
-            color="primary"
-            prepend-icon="mdi-content-save"
-            :loading="mppStore.loading"
-            @click="saveFullFlow"
-          >
-            Guardar Cambios en BD
-          </v-btn>
-        </v-card>
-      </v-col>
-
-      <!-- Panel de Visualización (Matriz) -->
-      <v-col cols="12" md="8">
-        <v-card class="pa-0 fill-height" elevation="3" min-height="750">
-          <v-toolbar color="grey-lighten-4" density="compact">
-            <v-toolbar-title class="text-subtitle-1 font-weight-black">Secuencia del Procedimiento</v-toolbar-title>
-            <v-spacer></v-spacer>
-            <v-btn icon="mdi-refresh" variant="text" @click="generateDiagram"></v-btn>
-            <v-btn icon="mdi-download" color="primary" variant="text" @click="downloadDiagram"></v-btn>
-          </v-toolbar>
-
-          <div class="main-content-layout">
-            <!-- Sidebar de Pasos -->
-            <div class="steps-sidebar pa-2">
-              <div v-if="flowSteps.length === 0" class="pa-4 text-center text-caption text-grey">Sin pasos</div>
-              <div
-                v-for="(step, index) in flowSteps"
-                :key="step.id"
-                class="step-item pa-2 mb-2"
-                :class="{ 'editing-active': editingIndex === index }"
-                @click="startEdit(index)"
-              >
-                <div class="d-flex justify-space-between align-center mb-1">
-                  <v-chip size="x-small" color="primary" variant="flat">#{{ index + 1 }}</v-chip>
-                  <v-btn icon="mdi-close" size="x-small" variant="text" color="error" @click.stop="removeStep(index)"></v-btn>
-                </div>
-                <div class="text-caption font-weight-bold text-truncate">{{ step.unidadNombre }}</div>
-                <div class="text-caption text-truncate opacity-70">{{ step.descripcion }}</div>
-              </div>
+                    <v-btn color="secondary" block prepend-icon="mdi-plus-thick" @click="insertNode" height="48">
+                        Insertar y Conectar
+                    </v-btn>
+                </v-card>
+                <v-btn color="primary" block size="large" prepend-icon="mdi-content-save" @click="saveFlow">Guardar Diseño</v-btn>
             </div>
+        </v-col>
 
-            <!-- Area de Diagrama -->
-            <div class="diagram-area">
-              <div v-if="!context.procedimientoId" class="empty-state">
-                <v-icon size="80" color="grey-lighten-3">mdi-arrow-decision-outline</v-icon>
-                <p class="text-grey">Seleccione un procedimiento para ver o crear su flujo</p>
-              </div>
-              <div v-else-if="flowSteps.length === 0" class="empty-state">
-                <v-icon size="80" color="grey-lighten-3">mdi-plus-box-multiple-outline</v-icon>
-                <p class="text-grey">El procedimiento no tiene pasos definidos. Comience a añadir actividades.</p>
-              </div>
-              <div v-else class="mermaid-wrapper">
-                <div :key="diagramDefinition" ref="mermaidContainer" class="mermaid">
-                  {{ diagramDefinition }}
-                </div>
-              </div>
+        <!-- ÁREA DERECHA -->
+        <v-col cols="12" md="9" class="bg-white" style="height: calc(100vh - 70px); position: relative;">
+            <VueFlow v-model:nodes="nodes" v-model:edges="edges" :fit-view-on-init="true">
+                <Background pattern-color="#e2e8f0" :gap="20" />
+                <Controls />
+            </VueFlow>
+            <div v-if="selectedProcedimiento" class="edit-hint">
+                <v-chip size="small" color="primary" prepend-icon="mdi-cursor-default-click">Haz clic en un nodo para editarlo o borrarlo</v-chip>
             </div>
-          </div>
-        </v-card>
-      </v-col>
+        </v-col>
     </v-row>
-  </v-container>
+
+    <!-- DIÁLOGO DE EDICIÓN -->
+    <v-dialog v-model="editDialog" max-width="500px">
+        <v-card v-if="activeNode">
+            <v-card-title class="bg-primary text-white d-flex align-center">
+                <span>Editar Paso</span>
+                <v-spacer></v-spacer>
+                <v-btn icon="mdi-close" variant="text" @click="editDialog = false"></v-btn>
+            </v-card-title>
+            <v-card-text class="pa-4">
+                <v-textarea v-model="nodeEditData.label" label="Descripción" variant="outlined" rows="3" class="mb-4"></v-textarea>
+                <v-select v-model="nodeEditData.tipo" :items="['Inicio', 'Tarea', 'Decisión', 'Fin']" label="Tipo de Figura" variant="outlined" class="mb-4"></v-select>
+                <v-select v-model="nodeEditData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id" label="Unidad Ejecutora" variant="outlined"></v-select>
+            </v-card-text>
+            <v-card-actions class="pa-4">
+                <v-btn color="error" variant="text" prepend-icon="mdi-delete" @click="deleteNode">Eliminar Nodo</v-btn>
+                <v-spacer></v-spacer>
+                <v-btn color="primary" variant="elevated" @click="updateNodeInfo">Aplicar Cambios</v-btn>
+            </v-card-actions>
+        </v-card>
+    </v-dialog>
+
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="2000">{{ snackbar.text }}</v-snackbar>
 </template>
 
-<script setup>
-import { ref, onMounted, nextTick, watch, reactive } from 'vue';
-import { useRoute } from 'vue-router';
-import mermaid from 'mermaid';
-import { useMppCoreStore } from '@/stores/mpp_core';
-
-const mppStore = useMppCoreStore();
-const route = useRoute();
-
-// 1. Estados de Contexto (Jerarquía Completa)
-const context = reactive({
-  unidadId: null,
-  procesoId: null,
-  subprocesoId: null,
-  procedimientoId: null
-});
-
-// Bloqueo de selección si viene de Gestión Estructura
-const isLocked = ref(false);
-
-onMounted(async () => {
-  mermaid.initialize({
-    // ... (rest of mermaid config)
-  });
-  
-  await mppStore.fetchUnidades();
-
-  // Si vienen parámetros por query, los asignamos y bloqueamos
-  if (route.query.u) {
-    isLocked.value = true;
-    context.unidadId = parseInt(route.query.u);
-    await mppStore.fetchProcesos(context.unidadId);
-    
-    if (route.query.p) {
-        context.procesoId = parseInt(route.query.p);
-        await mppStore.fetchSubprocesos(context.procesoId);
-    }
-    
-    if (route.query.s) {
-        context.subprocesoId = parseInt(route.query.s);
-        await mppStore.fetchProcedimientos(context.subprocesoId);
-    }
-    
-    if (route.query.pr) {
-        context.procedimientoId = parseInt(route.query.pr);
-        await onProcedimientoChange(context.procedimientoId);
-    }
-  }
-});
-
-// --- MANEJADORES DE CASCADA ---
-
-const onUnidadChange = async (val) => {
-  context.procesoId = null;
-  context.subprocesoId = null;
-  context.procedimientoId = null;
-  flowSteps.value = [];
-  if (val) await mppStore.fetchProcesos(val);
-};
-
-const onProcesoChange = async (val) => {
-  context.subprocesoId = null;
-  context.procedimientoId = null;
-  flowSteps.value = [];
-  if (val) await mppStore.fetchSubprocesos(val);
-};
-
-const onSubprocesoChange = async (val) => {
-  context.procedimientoId = null;
-  flowSteps.value = [];
-  if (val) await mppStore.fetchProcedimientos(val);
-};
-
-const onProcedimientoChange = async (val) => {
-  flowSteps.value = [];
-  if (val) {
-    const data = await mppStore.fetchPasos(val);
-    if (data && data.length > 0) {
-      flowSteps.value = data.map(p => ({
-        id: `node_${p.id || stepCounter++}`,
-        unidadId: p.unidadId,
-        unidadNombre: mppStore.unidades.find(u => u.id === p.unidadId)?.nombre || 'Unidad',
-        descripcion: p.descripcion,
-        shape: p.forma || 'process'
-      }));
-      generateDiagram();
-    }
-  }
-};
-
-// --- GESTIÓN DE PASOS ---
-
-const handleStepAction = () => {
-  const unidad = mppStore.unidades.find(u => u.id === stepForm.unidadId);
-  const stepData = {
-    id: editingIndex.value !== null ? flowSteps.value[editingIndex.value].id : `n${stepCounter++}`,
-    unidadId: stepForm.unidadId,
-    unidadNombre: unidad?.nombre || 'Unidad',
-    descripcion: stepForm.descripcion,
-    shape: stepForm.shape
-  };
-
-  if (editingIndex.value !== null) {
-    flowSteps.value[editingIndex.value] = stepData;
-    editingIndex.value = null;
-  } else {
-    flowSteps.value.push(stepData);
-  }
-
-  stepForm.descripcion = '';
-  generateDiagram();
-};
-
-const startEdit = (index) => {
-  editingIndex.value = index;
-  const step = flowSteps.value[index];
-  stepForm.unidadId = step.unidadId;
-  stepForm.descripcion = step.descripcion;
-  stepForm.shape = step.shape;
-};
-
-const cancelEdit = () => {
-  editingIndex.value = null;
-  stepForm.descripcion = '';
-};
-
-const removeStep = (index) => {
-  flowSteps.value.splice(index, 1);
-  if (editingIndex.value === index) cancelEdit();
-  generateDiagram();
-};
-
-const clearFlow = () => {
-  flowSteps.value = [];
-  diagramDefinition.value = '';
-};
-
-// --- MOTOR DE DIAGRAMA ---
-const diagramDefinition = ref('');
-const mermaidContainer = ref(null);
-
-const generateDiagram = async () => {
-  if (flowSteps.value.length === 0) {
-    diagramDefinition.value = '';
-    return;
-  }
-
-  let def = 'flowchart TD\n\n';
-  const unitsMap = {};
-  flowSteps.value.forEach(s => {
-    if (!unitsMap[s.unidadId]) unitsMap[s.unidadId] = { nombre: s.unidadNombre, pasos: [] };
-    unitsMap[s.unidadId].pasos.push(s);
-  });
-
-  // Carriles
-  Object.keys(unitsMap).forEach(uId => {
-    const u = unitsMap[uId];
-    const subId = `U${uId.toString().replace(/[^a-zA-Z0-9]/g, '')}`;
-    def += `  subgraph ${subId} ["<span style='font-size:13px; font-weight:900;'>${u.nombre}</span>"]\n    direction TB\n`;
-    u.pasos.forEach(p => {
-      const sType = shapes.find(s => s.value === p.shape);
-      def += `    ${p.id}${sType.mermaid[0]}"${p.descripcion.replace(/"/g, "'")}"${sType.mermaid[1]}\n`;
-    });
-    def += '  end\n\n';
-  });
-
-  // Conexiones
-  for (let i = 0; i < flowSteps.value.length - 1; i++) {
-    def += `  ${flowSteps.value[i].id} ==> ${flowSteps.value[i+1].id}\n`;
-  }
-
-  diagramDefinition.value = def;
-  await nextTick();
-  renderMermaid();
-};
-
-const renderMermaid = async () => {
-  try {
-    if (mermaidContainer.value) {
-      mermaidContainer.value.innerHTML = diagramDefinition.value;
-      mermaidContainer.value.removeAttribute('data-processed');
-      await mermaid.run({ nodes: [mermaidContainer.value] });
-    }
-  } catch (err) {}
-};
-
-const saveFullFlow = async () => {
-  const payload = flowSteps.value.map((s, idx) => ({
-    orden: idx + 1,
-    unidadId: s.unidadId,
-    descripcion: s.descripcion,
-    forma: s.shape
-  }));
-  
-  const success = await mppStore.saveFlujoCompleto(context.procedimientoId, payload);
-  if (success) {
-    alert("Secuencia de pasos guardada exitosamente.");
-  }
-};
-
-const downloadDiagram = () => {
-  const svg = mermaidContainer.value?.querySelector('svg');
-  if (!svg) return;
-  const canvas = document.createElement("canvas");
-  const img = new Image();
-  img.onload = () => {
-    canvas.width = img.width; canvas.height = img.height;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "white"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0);
-    const link = document.createElement("a");
-    link.download = `flujo_mpp_${context.procedimientoId}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-  };
-  img.src = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(new XMLSerializer().serializeToString(svg))));
-};
-</script>
-
 <style scoped>
-.main-content-layout {
-  display: flex;
-  height: calc(100vh - 200px);
-  background: #f1f5f9;
-}
+.color-primary { color: #6366f1; }
+.edit-hint { position: absolute; top: 10px; right: 10px; z-index: 5; }
 
-.steps-sidebar {
-  width: 220px;
-  background: #fff;
-  border-right: 1px solid #e2e8f0;
-  overflow-y: auto;
-  box-shadow: 2px 0 5px rgba(0,0,0,0.02);
-}
-
-.step-item {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.step-item:hover {
-  border-color: #3b82f6;
-  background: #f0f9ff;
-  transform: translateX(2px);
-}
-
-.editing-active {
-  border-color: #f59e0b !important;
-  background: #fffbeb !important;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
-}
-
-.diagram-area {
-  flex-grow: 1;
-  overflow: auto;
-  padding: 30px;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-.mermaid-wrapper {
-  background: #fff;
-  padding: 50px;
-  border-radius: 16px;
-  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
-  min-width: 600px;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.opacity-70 { opacity: 0.7; }
+:deep(.node-tarea) { background: #fff; border-left: 6px solid #6366f1; width: 180px; }
+:deep(.node-decision) { background: #fffbeb; border: 2px solid #fbbf24; clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); width: 160px; height: 160px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 25px; font-size: 11px; }
+:deep(.node-inicio) { background: #f0fdf4; border: 2px solid #22c55e; border-radius: 50px; width: 130px; text-align: center; }
+:deep(.node-fin) { background: #fef2f2; border: 2px solid #ef4444; border-radius: 50px; width: 130px; text-align: center; }
+:deep(.vue-flow__node) { padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); font-weight: 500; }
+:deep(.vue-flow__node.selected) { border: 2px solid #6366f1; transform: scale(1.05); transition: all 0.2s; }
 </style>
