@@ -195,7 +195,7 @@ const insertNode = () => {
         const newEdge = { 
             id: `e_${sourceNode.id}-${id}`, 
             source: sourceNode.id, 
-            target: id, 
+            target: id,   
             animated: true,
             // Importante: elegir el handle de salida
             sourceHandle: isNoBranch ? 'source-right' : 'source-bottom'
