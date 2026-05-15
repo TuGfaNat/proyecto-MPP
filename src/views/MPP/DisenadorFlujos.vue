@@ -16,22 +16,229 @@ const { onConnect, addEdges, onNodeClick, onEdgeClick, fitView } = useVueFlow()
 // --- ESTADOS ---
 const isLocked = ref(false)
 const showEntityDialog = ref(false)
+const showResourceDialog = ref(false)
 const entityMode = ref('create') 
 const entityType = ref('') 
 const entityData = ref({ 
     id: null, codigo: '', nombre: '', descripcion: '', id_unidades: [],
-    objetivos: '', alcance: '', periodicidad: '', version: '1.0', estado: 'Activo', id_instalaciones: []
+    objetivos: '', alcance: '', periodicidad: '', version: '1.0', estado: 'Activo', id_instalaciones: [],
+    id_normativas: [], id_indicadores: [], id_equipos: [], id_sistemas_informacion: []
 })
+
+const resourceMode = ref('create')
+const resourceType = ref('')
+const resourceData = ref({ id: null, nombre: '', descripcion: '', codigo: '', formula: '', meta: '', impacto: '', probabilidad: '', tipo_control: '', url: '', denominacion: '', unidad_medida: '' })
 
 const selectedProceso = ref(null)
 const selectedProcedimiento = ref(null)
 const selectedCargo = ref(null)
+const isUnitsDirty = ref(false)
+const isCargoDirty = ref(false)
+const isPeriodicidadDirty = ref(false)
+const isObjetivosDirty = ref(false)
+const isAlcanceDirty = ref(false)
+const isNormativaDirty = ref(false)
 
-// Estados de Calidad y Recursos
+// Datos de cabecera del procedimiento (Los 8 campos críticos)
+const procedureHeader = ref({
+    objetivos: '',
+    alcance: '',
+    periodicidad: ''
+})
+
+// Unidades del proceso seleccionado (Para Campo 1: UNIDAD RESPONSABLE)
+const processUnits = computed(() => {
+    if (!selectedProceso.value) return []
+    const proceso = mppStore.procesos.find(p => p.id_proceso === selectedProceso.value)
+    return proceso?.unidades || []
+})
+
+// Estados de selección para catálogos de Calidad y Recursos
 const selectedRiesgo = ref(null)
 const selectedControl = ref(null)
 const selectedRequisito = ref(null)
-const normativaText = ref('')
+const selectedNormativa = ref(null)
+const selectedIndicador = ref(null)
+
+// --- FILTRADO CONTEXTUAL (CASCADA) ---
+
+// Operaciones reales del backend para el procedimiento seleccionado
+const currentOperaciones = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    return mppStore.operaciones.filter(op => op.id_procedimiento === selectedProcedimiento.value)
+})
+
+watch(selectedProcedimiento, async (id) => {
+    if (id) {
+        console.log("Cargando datos del procedimiento ID:", id);
+        // Cargar datos actuales para el formulario de cabecera
+        const proc = mppStore.procedimientos.find(p => p.id_procedimiento === id)
+        if (proc) {
+            console.log("Procedimiento encontrado:", proc);
+            procedureHeader.value = {
+                objetivos: proc.objetivos || '',
+                alcance: proc.alcance || '',
+                periodicidad: proc.periodicidad || ''
+            }
+            // Recuperar normativa si existe
+            if (proc.normativas && proc.normativas.length > 0) {
+                selectedNormativa.value = proc.normativas[0].id_normativa;
+                console.log("Normativa recuperada ID:", selectedNormativa.value);
+            } else {
+                selectedNormativa.value = null;
+            }
+
+            // Resetear estados sucios al cargar uno nuevo
+            setTimeout(() => {
+                isPeriodicidadDirty.value = false
+                isObjetivosDirty.value = false
+                isAlcanceDirty.value = false
+                isNormativaDirty.value = false
+            }, 150)
+        }
+        
+        // Cargar operaciones para conocer la relación de riesgos/controles
+        await mppStore.fetchOperaciones()
+        // Resetear selecciones dependientes
+        selectedRiesgo.value = null
+        selectedControl.value = null
+        selectedRequisito.value = null
+        selectedIndicador.value = null
+    }
+})
+
+// Watchers para detectar cambios individuales
+watch(() => procedureHeader.value.periodicidad, () => { if (selectedProcedimiento.value && !isSaving.value) isPeriodicidadDirty.value = true })
+watch(() => procedureHeader.value.objetivos, () => { if (selectedProcedimiento.value && !isSaving.value) isObjetivosDirty.value = true })
+watch(() => procedureHeader.value.alcance, () => { if (selectedProcedimiento.value && !isSaving.value) isAlcanceDirty.value = true })
+watch(selectedNormativa, () => { if (selectedProcedimiento.value && !isSaving.value) isNormativaDirty.value = true })
+
+const saveProcedureHeader = async () => {
+    if (!selectedProcedimiento.value) return
+    try {
+        isSaving.value = true
+        console.log("Iniciando guardado de cabecera...");
+        
+        const updates = [
+            mppStore.updateProcedimiento(selectedProcedimiento.value, {
+                ...procedureHeader.value
+            })
+        ]
+
+        if (selectedNormativa.value) {
+            updates.push(mppStore.updateNormativa(selectedNormativa.value, {
+                id_procedimientos: [Number(selectedProcedimiento.value)]
+            }))
+        }
+
+        await Promise.all(updates)
+        
+        // Resetear estados sucios
+        isPeriodicidadDirty.value = false
+        isObjetivosDirty.value = false
+        isAlcanceDirty.value = false
+        isNormativaDirty.value = false
+        
+        snackbar.value = { show: true, text: 'Cabecera del procedimiento guardada exitosamente', color: 'success' }
+        await mppStore.fetchProcedimientos(selectedProceso.value)
+    } catch (e) {
+        console.error("Error al guardar:", e);
+        snackbar.value = { show: true, text: 'Error al guardar cabecera: ' + e.message, color: 'error' }
+    } finally {
+        isSaving.value = false
+    }
+}
+
+const filteredRiesgos = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    const idsOps = currentOperaciones.value.map(op => op.id_operaciones)
+    return mppStore.riesgos.filter(r => idsOps.includes(r.id_operacion))
+})
+
+const filteredControles = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    const idsOps = currentOperaciones.value.map(op => op.id_operaciones)
+    return mppStore.controles.filter(c => idsOps.includes(c.id_operacion))
+})
+
+const filteredRequisitos = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    const idsOps = currentOperaciones.value.map(op => op.id_operaciones)
+    return mppStore.requisitos.filter(req => idsOps.includes(req.id_operacion))
+})
+
+const filteredNormativas = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    return mppStore.normativas.filter(n => 
+        n.procedimientos?.some(p => p.id_procedimiento === selectedProcedimiento.value)
+    )
+})
+
+const filteredIndicadores = computed(() => {
+    if (!selectedProcedimiento.value) return []
+    return mppStore.indicadores.filter(i => 
+        i.procedimientos?.some(p => p.id_procedimiento === selectedProcedimiento.value)
+    )
+})
+
+const getNoDataText = (list, type) => {
+    if (!selectedProcedimiento.value) return 'Seleccione un procedimiento primero'
+    return list.length === 0 ? `Sin ${type} registrados para este procedimiento` : 'No hay coincidencias'
+}
+
+const filteredCargos = computed(() => {
+    if (!selectedProceso.value) return []
+    const proceso = mppStore.procesos.find(p => p.id_proceso === selectedProceso.value)
+    if (!proceso || !proceso.unidades) return []
+    const idsUnidadesProceso = proceso.unidades.map(u => u.id_unidad)
+    const unidadesConCargos = mppStore.unidades.filter(u => idsUnidadesProceso.includes(u.id_unidad))
+    const todosLosCargos = unidadesConCargos.flatMap(u => u.cargos || [])
+    return Array.from(new Map(todosLosCargos.map(c => [c.id_cargo, c])).values())
+})
+
+// --- CRUD RECURSOS ---
+const handleSaveResource = async () => {
+    try {
+        const type = resourceType.value
+        const isEdit = resourceMode.value === 'edit'
+        const payload = { ...resourceData.value }
+        delete payload.id
+
+        if (type === 'riesgo') {
+            isEdit ? await mppStore.updateRiesgo(resourceData.value.id, payload) : await mppStore.saveRiesgo(payload)
+            await mppStore.fetchRiesgos()
+        } else if (type === 'control') {
+            isEdit ? await mppStore.updateControl(resourceData.value.id, payload) : await mppStore.saveControl(payload)
+            await mppStore.fetchControles()
+        } else if (type === 'requisito') {
+            isEdit ? await mppStore.updateRequisito(resourceData.value.id, payload) : await mppStore.saveRequisito(payload)
+            await mppStore.fetchRequisitos()
+        } else if (type === 'normativa') {
+            isEdit ? await mppStore.updateNormativa(resourceData.value.id, payload) : await mppStore.saveNormativa(payload)
+            await mppStore.fetchNormativas()
+        } else if (type === 'indicador') {
+            isEdit ? await mppStore.updateIndicador(resourceData.value.id, payload) : await mppStore.saveIndicador(payload)
+            await mppStore.fetchIndicadores()
+        }
+
+        showResourceDialog.value = false
+        snackbar.value = { show: true, text: 'Registro procesado exitosamente', color: 'success' }
+    } catch (e) {
+        snackbar.value = { show: true, text: 'Error: ' + (e.response?.data?.message || e.message), color: 'error' }
+    }
+}
+
+const openResourceDialog = (type, mode = 'create', item = null) => {
+    resourceType.value = type
+    resourceMode.value = mode
+    if (mode === 'edit' && item) {
+        const id = item.id_riesgo || item.id_control || item.id_requisitos || item.id_normativa || item.id_indicador
+        resourceData.value = { ...item, id, nombre: item.nombre || item.denominacion || '', descripcion: item.descripcion || '' }
+    } else {
+        resourceData.value = { id: null, nombre: '', descripcion: '', codigo: '', formula: '', meta: '', impacto: '', probabilidad: '', tipo_control: '', url: '', denominacion: '', unidad_medida: '' }
+    }
+    showResourceDialog.value = true
+}
 
 // --- LÓGICA DE DECISIÓN (SÍ/NO) ---
 const connectionDialog = ref(false)
@@ -97,9 +304,34 @@ const snackbar = ref({ show: false, text: '', color: 'success' })
 const editDialog = ref(false)
 const activeNode = ref(null)
 const nodeEditData = ref({ label: '', tipo: 'Tarea', unidadEjecutoraId: null, responsable: '', requisitos: '', operaciones: '' })
+const nodeTab = ref('general')
 
 onMounted(async () => { 
-    await mppStore.fetchProcesos(); await mppStore.fetchUnidades(); await mppStore.fetchCargos();
+    try {
+        // 1. Sincronización Automática con el Core al Abrir (Asegura Verdad Absoluta)
+        // No bloqueamos toda la UI, pero cargamos lo básico primero
+        await mppStore.fetchProcesos()
+        
+        // Disparamos la sincronización pesada en segundo plano o secuencialmente
+        handleFullSync() 
+
+        // 2. Carga de Catálogos para selectores
+        await Promise.all([
+            mppStore.fetchUnidades(), 
+            mppStore.fetchCargos(),
+            mppStore.fetchNormativas(),
+            mppStore.fetchIndicadores(),
+            mppStore.fetchEquipos(),
+            mppStore.fetchSistemasInformacion(),
+            mppStore.fetchRiesgos(),
+            mppStore.fetchControles(),
+            mppStore.fetchRequisitos(),
+            mppStore.fetchOperaciones()
+        ]);
+    } catch (e) {
+        console.error("Error en carga inicial:", e)
+    }
+    
     autoSaveTimer = setInterval(autoSaveSilent, 60000); 
 })
 onUnmounted(() => clearInterval(autoSaveTimer))
@@ -132,52 +364,107 @@ const normalizeType = (tipo) => {
 watch(selectedProceso, async (v) => { 
     if (!isLocked.value) { 
         selectedProcedimiento.value = null; selectedCargo.value = null;
-        if (v) { await mppStore.fetchProcedimientos(v); await mppStore.fetchCargoProcesos(v); }
+        if (v) { 
+            await mppStore.fetchProcedimientos(v); 
+            await mppStore.fetchCargoProcesos(v);
+            
+            // Sincronizar unidades del proceso con el Campo 2
+            const proceso = mppStore.procesos.find(p => p.id_proceso === v);
+            if (proceso && proceso.unidades) {
+                entityData.value.id_unidades = proceso.unidades.map(u => u.id_unidad);
+            } else {
+                entityData.value.id_unidades = [];
+            }
+            // Resetear estado de cambios después de cargar
+            setTimeout(() => { 
+                isUnitsDirty.value = false 
+                isCargoDirty.value = false
+            }, 100);
+        }
     } 
 })
 
-watch(() => mppStore.cargoProcesos, (list) => {
-    const resp = list.find(cp => cp.es_responsable_principal)
-    if (resp) selectedCargo.value = resp.id_cargo
+watch(selectedCargo, (newVal) => {
+    if (selectedProceso.value && !isSaving.value) {
+        // Verificar si el cargo ya es el principal actual para no activar el pulso innecesariamente
+        const principalActual = mppStore.cargoProcesos.find(cp => cp.es_responsable_principal)?.id_cargo
+        if (newVal !== principalActual) {
+            isCargoDirty.value = true
+        }
+    }
+})
+
+watch(() => entityData.value.id_unidades, (newVal) => {
+    if (selectedProceso.value && !isSaving.value) {
+        isUnitsDirty.value = true
+    }
 }, { deep: true })
 
 const saveCargoRelation = async () => {
     if (!selectedProceso.value || !selectedCargo.value) return
     try {
+        isSaving.value = true
         const existing = mppStore.cargoProcesos.find(cp => cp.es_responsable_principal)
         if (existing) {
-            await mppStore.updateCargoProceso(existing.id_cargo_proceso, { id_cargo: selectedCargo.value, id_proceso: selectedProceso.value, es_responsable_principal: true })
+            await mppStore.updateCargoProceso(existing.id, { id_cargo: Number(selectedCargo.value), id_proceso: Number(selectedProceso.value), es_responsable_principal: true })
         } else {
-            await mppStore.saveCargoProceso({ id_cargo: selectedCargo.value, id_proceso: selectedProceso.value, es_responsable_principal: true })
+            await mppStore.saveCargoProceso({ id_cargo: Number(selectedCargo.value), id_proceso: Number(selectedProceso.value), es_responsable_principal: true })
         }
+        const cargoTemporal = selectedCargo.value
         await mppStore.fetchCargoProcesos(selectedProceso.value)
-        snackbar.value = { show: true, text: 'Cargo responsable actualizado', color: 'success' }
-    } catch (e) { snackbar.value = { show: true, text: 'Error al asignar cargo', color: 'error' } }
+        selectedCargo.value = cargoTemporal
+        isCargoDirty.value = false
+        snackbar.value = { show: true, text: 'Cargo responsable guardado', color: 'success' }
+    } catch (e) { snackbar.value = { show: true, text: 'Error al asignar cargo: ' + e.message, color: 'error' } }
+    finally { isSaving.value = false }
 }
 
-const handleSync = async () => {
+const saveProcessUnits = async () => {
+    if (!selectedProceso.value) return
     try {
-        const success = await mppStore.syncUnidades();
-        if (success) snackbar.value = { show: true, text: 'Sincronización con MOF exitosa', color: 'success' }
-        else snackbar.value = { show: true, text: 'Error en la sincronización', color: 'error' }
-    } catch (e) { snackbar.value = { show: true, text: 'Fallo crítico: ' + e.message, color: 'error' } }
+        isSaving.value = true
+        await mppStore.updateProceso(selectedProceso.value, {
+            id_unidades: entityData.value.id_unidades.map(id => Number(id))
+        })
+        snackbar.value = { show: true, text: 'Unidades del proceso actualizadas', color: 'success' }
+        await mppStore.fetchProcesos()
+        isUnitsDirty.value = false
+    } catch (e) {
+        snackbar.value = { show: true, text: 'Error al actualizar unidades: ' + e.message, color: 'error' }
+    } finally {
+        isSaving.value = false
+    }
+}
+
+const handleFullSync = async () => {
+    try {
+        snackbar.value = { show: true, text: 'Iniciando sincronización...', color: 'info' }
+        const resUnidades = await mppStore.syncUnidades()
+        if (!resUnidades) throw new Error('Error al sincronizar unidades')
+        const resCargos = await mppStore.syncCargos()
+        if (resCargos) snackbar.value = { show: true, text: 'Sincronización completada', color: 'success' }
+        else snackbar.value = { show: true, text: 'Problema parcial con cargos', color: 'warning' }
+    } catch (e) { snackbar.value = { show: true, text: 'Fallo: ' + e.message, color: 'error' } }
 }
 
 const openDialog = async (type, mode = 'create') => {
     entityType.value = type; entityMode.value = mode
     if (mode === 'edit') {
         const id = type === 'proceso' ? selectedProceso.value : selectedProcedimiento.value
-        const item = (type === 'proceso' ? mppStore.procesos : mppStore.procedimientos).find(i => {
-            return (type === 'proceso' ? i.id_proceso : i.id_procedimiento) === id
-        })
+        const item = (type === 'proceso' ? mppStore.procesos : mppStore.procedimientos).find(i => (type === 'proceso' ? i.id_proceso : i.id_procedimiento) === id)
         entityData.value = { 
             id: type === 'proceso' ? item.id_proceso : item.id_procedimiento, 
             codigo: item.codigo || '', nombre: item.nombre || '', descripcion: item.descripcion || '',
             id_unidades: item.unidades ? item.unidades.map(u => u.id_unidad) : [],
-            objetivos: item.objetivos || '', alcance: item.alcance || '', periodicidad: item.periodicidad || '', version: item.version || '1.0', estado: item.estado || 'Activo', id_instalaciones: item.id_instalaciones || []
+            objetivos: item.objetivos || '', alcance: item.alcance || '', periodicidad: item.periodicidad || '', version: item.version || '1.0', estado: item.estado || 'Activo', 
+            id_instalaciones: item.instalaciones ? item.instalaciones.map(i => i.id_unidad) : [],
+            id_normativas: item.normativas ? item.normativas.map(n => n.id_normativa) : [],
+            id_indicadores: item.indicadores ? item.indicadores.map(i => i.id_indicador) : [],
+            id_equipos: item.equipos ? item.equipos.map(e => e.id_equipos) : [],
+            id_sistemas_informacion: item.sistemasInformacion ? item.sistemasInformacion.map(s => s.id_sistema_informacion) : []
         }
     } else {
-        entityData.value = { id: null, codigo: '', nombre: '', descripcion: '', id_unidades: [], objetivos: '', alcance: '', periodicidad: '', version: '1.0', estado: 'Activo', id_instalaciones: [] }
+        entityData.value = { id: null, codigo: '', nombre: '', descripcion: '', id_unidades: [], objetivos: '', alcance: '', periodicidad: '', version: '1.0', estado: 'Activo', id_instalaciones: [], id_normativas: [], id_indicadores: [], id_equipos: [], id_sistemas_informacion: [] }
     }
     showEntityDialog.value = true
 }
@@ -189,7 +476,7 @@ const handleSaveEntity = async () => {
                 const res = await mppStore.saveProceso({ codigo: entityData.value.codigo, nombre: entityData.value.nombre, descripcion: entityData.value.descripcion, id_unidades: entityData.value.id_unidades.map(id => Number(id)) }); 
                 await mppStore.fetchProcesos(); selectedProceso.value = res.id_proceso 
             } else { 
-                const payload = { id_proceso: Number(selectedProceso.value), codigo: entityData.value.codigo, nombre: entityData.value.nombre, objetivos: entityData.value.objetivos, alcance: entityData.value.alcance, periodicidad: entityData.value.periodicidad, version: entityData.value.version, estado: entityData.value.estado, id_instalaciones: Array.isArray(entityData.value.id_instalaciones) ? entityData.value.id_instalaciones.map(id => Number(id)) : [] };
+                const payload = { id_proceso: Number(selectedProceso.value), codigo: entityData.value.codigo, nombre: entityData.value.nombre, objetivos: entityData.value.objetivos, alcance: entityData.value.alcance, periodicidad: entityData.value.periodicidad, version: entityData.value.version, estado: entityData.value.estado, id_instalaciones: entityData.value.id_instalaciones.map(id => Number(id)) };
                 const res = await mppStore.saveProcedimiento(payload); await mppStore.fetchProcedimientos(selectedProceso.value); selectedProcedimiento.value = res.id_procedimiento 
             }
         } else {
@@ -197,54 +484,61 @@ const handleSaveEntity = async () => {
                 await mppStore.updateProceso(entityData.value.id, { codigo: entityData.value.codigo, nombre: entityData.value.nombre, descripcion: entityData.value.descripcion, id_unidades: entityData.value.id_unidades.map(id => Number(id)) })
                 await mppStore.fetchProcesos(); selectedProceso.value = entityData.value.id
             } else {
-                await mppStore.updateProcedimiento(entityData.value.id, { id_proceso: selectedProceso.value, codigo: entityData.value.codigo, nombre: entityData.value.nombre, objetivos: entityData.value.objetivos, alcance: entityData.value.alcance, periodicidad: entityData.value.periodicidad, version: entityData.value.version, estado: entityData.value.estado, id_instalaciones: entityData.value.id_instalaciones })
+                await mppStore.updateProcedimiento(entityData.value.id, { id_proceso: Number(selectedProceso.value), codigo: entityData.value.codigo, nombre: entityData.value.nombre, objetivos: entityData.value.objetivos, alcance: entityData.value.alcance, periodicidad: entityData.value.periodicidad, version: entityData.value.version, estado: entityData.value.estado, id_instalaciones: entityData.value.id_instalaciones.map(id => Number(id)) })
                 await mppStore.fetchProcedimientos(selectedProceso.value); selectedProcedimiento.value = entityData.value.id
             }
         }
         showEntityDialog.value = false; snackbar.value = { show: true, text: 'Guardado correctamente', color: 'success' }
-    } catch (e) { snackbar.value = { show: true, text: 'Error al guardar', color: 'error' } }
+    } catch (e) { snackbar.value = { show: true, text: 'Error: ' + (e.response?.data?.message || e.message), color: 'error' } }
 }
 
 const confirmEstructura = async () => {
     if (!selectedProcedimiento.value) return
-    isLocked.value = true
-    const pasos = await mppStore.fetchPasos(selectedProcedimiento.value)
-    nodes.value = pasos?.length ? pasos.map((p, idx) => ({ id: p.id.toString(), type: 'mppNode', position: { x: p.x || 100, y: p.y || 100 }, data: { ...p.metadata, order: p.orden || (idx + 1), label: p.descripcion } })) : []
-    const restoredEdges = []
-    pasos?.forEach(p => { if (p.metadata?.connections) restoredEdges.push(...p.metadata.connections) })
-    edges.value = restoredEdges
-    setTimeout(() => { fitView(); isDirty.value = false; lastSaved.value = 'Cargado'; }, 200)
-}
+    
+    try {
+        isSaving.value = true
+        // 1. GUARDADO PROFUNDO (Deep Save) antes de entrar al diseño
+        const deepUpdates = [
+            mppStore.updateProcedimiento(selectedProcedimiento.value, {
+                objetivos: procedureHeader.value.objetivos,
+                alcance: procedureHeader.value.alcance,
+                periodicidad: procedureHeader.value.periodicidad
+            }),
+            saveCargoRelation(),
+            saveProcessUnits()
+        ]
 
-onConnect((params) => {
-    const sourceNode = nodes.value.find(n => n.id === params.source)
-    if (sourceNode?.data?.tipo === 'Decisión') { pendingConnection.value = params; connectionDialog.value = true } 
-    else { params.animated = true; addEdges([params]) }
-})
+        if (selectedNormativa.value) {
+            deepUpdates.push(mppStore.updateNormativa(selectedNormativa.value, {
+                id_procedimientos: [Number(selectedProcedimiento.value)]
+            }))
+        }
 
-onEdgeClick(({ edge }) => { if (confirm('¿Eliminar conexión?')) edges.value = edges.value.filter(e => e.id !== edge.id) })
+        await Promise.all(deepUpdates)
 
-const insertNode = () => {
-    if (!nextNodeData.value.label || !nextNodeData.value.unidadEjecutoraId) return
-    const id = `node_${Date.now()}`
-    const parentNode = nodes.value.find(n => n.id === selectedParentId.value)
-    let position = { x: 400, y: nodes.value.length * 200 + 50 }
-    if (parentNode) {
-        if (parentNode.data.tipo === 'Decisión' && decisionBranch.value === 'NO') position = { x: parentNode.position.x + 350, y: parentNode.position.y }
-        else position = { x: parentNode.position.x, y: parentNode.position.y + 250 }
+        // Resetear todos los estados sucios tras el guardado total
+        isUnitsDirty.value = false
+        isCargoDirty.value = false
+        isPeriodicidadDirty.value = false
+        isObjetivosDirty.value = false
+        isAlcanceDirty.value = false
+        isNormativaDirty.value = false
+
+        // 2. Transición al Diseñador
+        isLocked.value = true
+        const pasos = await mppStore.fetchPasos(selectedProcedimiento.value)
+        nodes.value = pasos?.length ? pasos.map((p, idx) => ({ id: p.id.toString(), type: 'mppNode', position: { x: p.x || 100, y: p.y || 100 }, data: { ...p.metadata, order: p.orden || (idx + 1), label: p.descripcion } })) : []
+        const restoredEdges = []
+        pasos?.forEach(p => { if (p.metadata?.connections) restoredEdges.push(...p.metadata.connections) })
+        edges.value = restoredEdges
+        
+        setTimeout(() => { fitView(); isDirty.value = false; lastSaved.value = 'Todo guardado y cargado'; }, 200)
+    } catch (e) {
+        snackbar.value = { show: true, text: 'Error al realizar guardado profundo: ' + e.message, color: 'error' }
+    } finally {
+        isSaving.value = false
     }
-    const newNode = { id, type: 'mppNode', position, data: { ...nextNodeData.value, order: nodes.value.length + 1 } }
-    nodes.value.push(newNode)
-    const sourceNode = parentNode || nodes.value[nodes.value.length - 2]
-    if (sourceNode) {
-        const isDecision = sourceNode.data.tipo === 'Decisión'; const isNoBranch = isDecision && decisionBranch.value === 'NO'; const newEdge = { id: `e_${sourceNode.id}-${id}`, source: sourceNode.id, target: id, animated: true, sourceHandle: isNoBranch ? 'source-right' : 'source-bottom' }
-        if (isDecision) { const isYes = decisionBranch.value === 'SÍ'; newEdge.label = isYes ? 'SÍ' : 'NO'; newEdge.style = { stroke: isYes ? '#22c55e' : '#ef4444', strokeWidth: 4 }; newEdge.labelStyle = { fill: isYes ? '#22c55e' : '#ef4444', fontWeight: 900 } }
-        edges.value.push(newEdge)
-    }
-    selectedParentId.value = id; nextNodeData.value = { ...nextNodeData.value, label: '', requisitos: '', operaciones: '' }
 }
-
-onNodeClick(({ node }) => { activeNode.value = node; nodeEditData.value = { label: node.data.label, ...node.data }; editDialog.value = true; })
 
 const updateNodeInfo = () => {
     const n = nodes.value.find(node => node.id === activeNode.value.id)
@@ -256,55 +550,149 @@ const deleteNode = () => {
     nodes.value = nodes.value.filter(n => n.id !== activeNode.value.id); edges.value = edges.value.filter(e => e.source !== activeNode.value.id && e.target !== activeNode.value.id)
     nodes.value.forEach((n, i) => n.data.order = i + 1); editDialog.value = false
 }
+
+const exportToPDF = () => {
+    window.print()
+}
 </script>
 
 <template>
     <v-container fluid class="pa-0 fill-height bg-grey-lighten-4 overflow-hidden" :class="{ 'is-resizing': isResizing }">
         
         <!-- PANTALLA 1 -->
-        <v-row v-if="!isLocked" justify="center" align="center" class="fill-height ma-0">
+        <v-row v-if="!isLocked" justify="center" align="center" class="fill-height ma-0" style="flex-direction: column; align-content: center;">
+            
             <v-col cols="12" sm="10" md="8" lg="5">
                 <v-card elevation="12" class="rounded-xl pa-8 border-top-primary">
+                    <div class="d-flex justify-end mb-n8">
+                        <v-btn
+                            icon="mdi-sync"
+                            color="info"
+                            variant="text"
+                            :loading="mppStore.loading"
+                            @click="handleFullSync"
+                            title="Sincronizar con UMSA-Core"
+                        ></v-btn>
+                    </div>
                     <div class="text-center mb-8">
                         <v-avatar color="primary-lighten-5" size="80" class="mb-4"><v-icon size="40" color="primary">mdi-sitemap-outline</v-icon></v-avatar>
                         <h1 class="text-h4 font-weight-bold grey-darken-3">Manual de Procesos y Procedimientos</h1>
                         <p class="text-subtitle-1 text-grey-darken-1">Configura la jerarquía del proceso</p>
                     </div>
+
                     <v-row class="px-2">
-                        <!-- FILA 1: PROCESO -->
+                        <!-- CAMPO 1: PROCESO -->
                         <v-col cols="12" class="d-flex align-center mb-1">
                             <v-select v-model="selectedProceso" :items="mppStore.procesos" :item-title="getItemTitle" item-value="id_proceso" label="1. Proceso" variant="solo-filled" hide-details prepend-inner-icon="mdi-hexagon-multiple-outline" class="flex-grow-1"></v-select>
                             <div class="d-flex ml-2" style="width: 84px; justify-content: space-between;">
-                                <v-btn icon="mdi-plus" color="primary" variant="tonal" size="small" @click="openDialog('proceso')"></v-btn>
-                                <v-btn icon="mdi-pencil" color="info" variant="tonal" size="small" :disabled="!selectedProceso" @click="openDialog('proceso', 'edit')"></v-btn>
+                                <v-btn icon color="primary" variant="tonal" size="small" @click="openDialog('proceso')">
+                                    <v-icon>mdi-plus</v-icon>
+                                    <v-tooltip activator="parent" location="top">Nuevo Proceso</v-tooltip>
+                                </v-btn>
+                                <v-btn icon color="info" variant="tonal" size="small" :disabled="!selectedProceso" @click="openDialog('proceso', 'edit')">
+                                    <v-icon>mdi-pencil</v-icon>
+                                    <v-tooltip activator="parent" location="top">Editar Proceso</v-tooltip>
+                                </v-btn>
+                            </div>
+                        </v-col>
+
+                        <!-- CAMPO 2: UNIDAD RESPONSABLE -->
+                        <v-col cols="12" class="d-flex align-center mb-1">
+                            <v-autocomplete v-model="entityData.id_unidades" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id_unidad" label="2. Unidades Responsables" variant="solo-filled" hide-details prepend-inner-icon="mdi-domain" multiple chips closable-chips class="flex-grow-1" :disabled="!selectedProceso"></v-autocomplete>
+                            <div class="d-flex ml-2" style="width: 42px; justify-content: flex-end;">
+                                <v-btn icon color="success" variant="tonal" size="small" :disabled="!selectedProceso" @click="saveProcessUnits" :class="{ 'pulse-save': isUnitsDirty }">
+                                    <v-icon>mdi-check</v-icon>
+                                    <v-tooltip activator="parent" location="top">Guardar Unidades</v-tooltip>
+                                </v-btn>
                             </div>
                         </v-col>
                         
-                        <!-- FILA 2: CARGO RESPONSABLE -->
-                        <v-expand-transition>
-                            <v-col cols="12" class="d-flex align-center pt-0 mb-1" v-if="selectedProceso">
-                                <div style="width: 32px;"></div> <!-- Sangría sutil -->
-                                <v-select v-model="selectedCargo" :items="mppStore.cargos" :item-title="getItemTitle" item-value="id_cargo" label="Responsable del Proceso" variant="solo-filled" density="comfortable" hide-details prepend-inner-icon="mdi-account-tie-outline" class="flex-grow-1"></v-select>
-                                <div class="d-flex ml-2" style="width: 84px; justify-content: flex-end;">
-                                    <v-btn icon="mdi-content-save" color="success" variant="tonal" :disabled="!selectedCargo" @click="saveCargoRelation" size="small"></v-btn>
-                                </div>
-                            </v-col>
-                        </v-expand-transition>
-
-                        <!-- FILA 3: PROCEDIMIENTO -->
-                        <v-col cols="12" class="d-flex align-center">
-                            <v-select v-model="selectedProcedimiento" :items="mppStore.procedimientos" :item-title="getItemTitle" item-value="id_procedimiento" :item-props="getProcedimientoProps" label="2. Procedimiento" variant="solo-filled" :disabled="!selectedProceso" hide-details prepend-inner-icon="mdi-file-edit-outline" class="flex-grow-1"></v-select>
-                            <div class="d-flex ml-2" style="width: 84px; justify-content: space-between;">
-                                <v-btn icon="mdi-plus" color="primary" variant="tonal" size="small" @click="openDialog('procedimiento')"></v-btn>
-                                <v-btn icon="mdi-pencil" color="info" variant="tonal" size="small" :disabled="!selectedProcedimiento" @click="openDialog('procedimiento', 'edit')"></v-btn>
+                        <!-- CAMPO 3: RESPONSABLE PRINCIPAL (CARGOS) -->
+                        <v-col cols="12" class="d-flex align-center mb-1" v-if="selectedProceso">
+                            <v-select v-model="selectedCargo" :items="filteredCargos" :item-title="getItemTitle" item-value="id_cargo" label="3. Responsable Principal" variant="solo-filled" hide-details prepend-inner-icon="mdi-account-tie-outline" class="flex-grow-1"></v-select>
+                            <div class="d-flex ml-2" style="width: 42px; justify-content: flex-end;">
+                                <v-btn icon color="success" variant="tonal" size="small" :disabled="!selectedCargo" @click="saveCargoRelation" :class="{ 'pulse-save': isCargoDirty }">
+                                    <v-icon>mdi-check</v-icon>
+                                    <v-tooltip activator="parent" location="top">Guardar Responsable</v-tooltip>
+                                </v-btn>
                             </div>
                         </v-col>
+
+                        <!-- CAMPO 4: PROCEDIMIENTO -->
+                        <v-col cols="12" class="d-flex align-center mb-1">
+                            <v-select v-model="selectedProcedimiento" :items="mppStore.procedimientos" :item-title="getItemTitle" item-value="id_procedimiento" :item-props="getProcedimientoProps" label="4. Procedimiento" variant="solo-filled" :disabled="!selectedProceso" hide-details prepend-inner-icon="mdi-file-edit-outline" class="flex-grow-1"></v-select>
+                            <div class="d-flex ml-2" style="width: 84px; justify-content: space-between;">
+                                <v-btn icon color="primary" variant="tonal" size="small" @click="openDialog('procedimiento')">
+                                    <v-icon>mdi-plus</v-icon>
+                                    <v-tooltip activator="parent" location="top">Nuevo Procedimiento</v-tooltip>
+                                </v-btn>
+                                <v-btn icon color="info" variant="tonal" size="small" :disabled="!selectedProcedimiento" @click="openDialog('procedimiento', 'edit')">
+                                    <v-icon>mdi-pencil</v-icon>
+                                    <v-tooltip activator="parent" location="top">Editar Procedimiento</v-tooltip>
+                                </v-btn>
+                            </div>
+                        </v-col>
+
+                        <!-- BLOQUE DE DETALLES UNIFICADOS -->
+                        <v-expand-transition>
+                            <v-col cols="12" v-if="selectedProcedimiento" class="pt-0">
+                                <v-row dense>
+                                    <!-- CAMPO 5: PERIODICIDAD -->
+                                    <v-col cols="12" class="d-flex align-center mb-1">
+                                        <v-text-field v-model="procedureHeader.periodicidad" label="5. Periodicidad" variant="solo-filled" hide-details prepend-inner-icon="mdi-calendar-sync" class="flex-grow-1" placeholder="Ej: Anual, Mensual, Según demanda..."></v-text-field>
+                                        <div class="d-flex ml-2" style="width: 84px; justify-content: flex-end;">
+                                            <v-btn icon color="success" variant="tonal" size="small" @click="saveProcedureHeader" :class="{ 'pulse-save': isPeriodicidadDirty }">
+                                                <v-icon>mdi-check</v-icon>
+                                                <v-tooltip activator="parent" location="top">Guardar Periodicidad</v-tooltip>
+                                            </v-btn>
+                                        </div>
+                                    </v-col>
+
+                                    <!-- CAMPO 6: OBJETIVO (SELECTOR DE MODELOS) -->
+                                    <v-col cols="12" class="d-flex align-start mb-1">
+                                        <v-textarea v-model="procedureHeader.objetivos" label="6. Objetivo del Procedimiento" variant="solo-filled" rows="2" hide-details prepend-inner-icon="mdi-target-variant" class="flex-grow-1"></v-textarea>
+                                        <div class="d-flex ml-2" style="width: 84px; justify-content: flex-end;">
+                                            <v-btn icon color="success" variant="tonal" size="small" @click="saveProcedureHeader" :class="{ 'pulse-save': isObjetivosDirty }">
+                                                <v-icon>mdi-check</v-icon>
+                                                <v-tooltip activator="parent" location="top">Guardar Objetivo</v-tooltip>
+                                            </v-btn>
+                                        </div>
+                                    </v-col>
+
+                                    <!-- CAMPO 7: NORMATIVA -->
+                                    <v-col cols="12" class="d-flex align-center mb-1">
+                                        <v-autocomplete v-model="selectedNormativa" :items="mppStore.normativas" :no-data-text="getNoDataText(mppStore.normativas, 'normativas')" item-title="nombre" item-value="id_normativa" label="7. Marco Normativo" variant="solo-filled" hide-details prepend-inner-icon="mdi-gavel" class="flex-grow-1"></v-autocomplete>
+                                        <div class="d-flex ml-2" style="width: 84px; justify-content: space-between;">
+                                            <v-btn icon color="success" variant="tonal" size="small" @click="saveProcedureHeader" :class="{ 'pulse-save': isNormativaDirty }">
+                                                <v-icon>mdi-check</v-icon>
+                                                <v-tooltip activator="parent" location="top">Vincular Normativa</v-tooltip>
+                                            </v-btn>
+                                            <v-btn icon color="primary" variant="tonal" size="small" @click="openResourceDialog('normativa')">
+                                                <v-icon>mdi-plus</v-icon>
+                                                <v-tooltip activator="parent" location="top">Nueva Normativa</v-tooltip>
+                                            </v-btn>
+                                        </div>
+                                    </v-col>
+
+                                    <!-- CAMPO 8: ALCANCE -->
+                                    <v-col cols="12" class="d-flex align-start">
+                                        <v-textarea v-model="procedureHeader.alcance" label="8. Alcance" variant="solo-filled" rows="2" hide-details prepend-inner-icon="mdi-arrow-expand-all" class="flex-grow-1"></v-textarea>
+                                        <div class="d-flex ml-2" style="width: 84px; justify-content: flex-end;">
+                                            <v-btn icon color="success" variant="tonal" size="small" @click="saveProcedureHeader" :class="{ 'pulse-save': isAlcanceDirty }">
+                                                <v-icon>mdi-check</v-icon>
+                                                <v-tooltip activator="parent" location="top">Guardar Alcance</v-tooltip>
+                                            </v-btn>
+                                        </div>
+                                    </v-col>
+                                </v-row>
+                            </v-col>
+                        </v-expand-transition>
                     </v-row>
 
                     <v-expand-transition>
                         <v-alert v-if="isProcedimientoInactivo" type="warning" variant="tonal" class="mt-4 rounded-lg" border="start">
                             <template v-slot:title><span class="text-subtitle-1 font-weight-bold">Procedimiento en Pausa</span></template>
-                            Este procedimiento está <strong>Inactivo</strong>. Para diseñar su flujo, primero debes activarlo usando el botón de edición (el lápiz azul).
+                            Este procedimiento está <strong>Inactivo</strong>. Para diseñar su flujo, primero debes activarlo.
                         </v-alert>
                     </v-expand-transition>
 
@@ -336,7 +724,7 @@ const deleteNode = () => {
                         <h3 class="text-subtitle-1 font-weight-bold mb-4">Configurar Paso</h3>
                         <v-card variant="flat" border class="pa-4 rounded-xl bg-grey-lighten-5 mb-4">
                             <p class="text-caption font-weight-bold text-uppercase mb-1">1. Unidad Responsable</p>
-                            <v-select v-model="nextNodeData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id" variant="outlined" density="compact" class="mb-3" bg-color="white"></v-select>
+                            <v-select v-model="nextNodeData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id_unidad" variant="outlined" density="compact" class="mb-3" bg-color="white"></v-select>
                             
                             <p class="text-caption font-weight-bold text-uppercase mb-1">2. Responsable (Cargo)</p>
                             <v-text-field v-model="nextNodeData.responsable" variant="outlined" density="compact" bg-color="white" class="mb-3" placeholder="Ej: Jefe de Oficina"></v-text-field>
@@ -353,7 +741,7 @@ const deleteNode = () => {
                             <p class="text-caption font-weight-bold text-uppercase mb-1">6. Operaciones</p>
                             <v-textarea v-model="nextNodeData.operaciones" rows="2" variant="outlined" density="compact" bg-color="white" class="mb-4"></v-textarea>
                             
-                            <p class="text-caption font-weight-bold text-uppercase mb-1">7. Paso Anterior (Conectar a)</p>
+                            <p class="text-caption font-weight-bold text-uppercase mb-1">7. Paso Anterior</p>
                             <v-select v-model="selectedParentId" :items="nodes" :item-title="item => item.data.label" item-value="id" placeholder="Último paso creado" variant="outlined" density="compact" bg-color="white" class="mb-3" clearable></v-select>
 
                             <v-expand-transition>
@@ -390,7 +778,6 @@ const deleteNode = () => {
                                 <div class="mpp-node-label">{{ data.label }}</div>
                                 <div class="mpp-node-resp">{{ data.responsable || 'Puesto no asignado' }}</div>
                             </div>
-                            <div class="mpp-node-badges" v-if="data.requisitos || data.operaciones"><v-icon size="14">mdi-file-document-check</v-icon></div>
                             <Handle id="source-bottom" type="source" :position="Position.Bottom" style="background: #94a3b8; width: 10px; height: 10px;" />
                             <Handle v-if="data.tipo === 'Decisión'" id="source-right" type="source" :position="Position.Right" style="background: #ef4444; width: 12px; height: 12px;" />
                         </div>
@@ -401,54 +788,22 @@ const deleteNode = () => {
             </main>
         </div>
 
-        <v-dialog v-model="connectionDialog" max-width="350px" persistent>
-            <v-card class="rounded-xl pa-4 text-center">
-                <v-icon color="orange" size="64" class="mb-4">mdi-help-rhombus</v-icon>
-                <v-card-title class="text-h5 font-weight-bold">Ruta de Decisión</v-card-title>
-                <v-card-text>¿Qué respuesta representa esta conexión?</v-card-text>
-                <v-card-actions class="justify-center pt-4">
-                    <v-btn color="error" variant="elevated" @click="confirmConnection(false)" size="large" class="px-8 rounded-lg mr-2">NO</v-btn>
-                    <v-btn color="success" variant="elevated" @click="confirmConnection(true)" size="large" class="px-8 rounded-lg">SÍ</v-btn>
-                </v-card-actions>
-            </v-card>
-        </v-dialog>
-
-        <v-dialog v-model="showEntityDialog" max-width="500px">
+        <!-- DIÁLOGOS CRUD -->
+        <v-dialog v-model="showEntityDialog" max-width="600px">
             <v-card class="rounded-lg pa-4">
                 <v-card-title class="text-h5 font-weight-bold text-capitalize">{{ entityMode === 'create' ? 'Nuevo' : 'Editar' }} {{ entityType }}</v-card-title>
                 <v-card-text>
                     <v-row v-if="entityType === 'proceso'">
-                        <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.codigo" label="Código" variant="outlined" density="compact" placeholder="Ej: PROC-001"></v-text-field></v-col>
+                        <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.codigo" label="Código" variant="outlined" density="compact"></v-text-field></v-col>
                         <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.nombre" label="Nombre del Proceso" variant="outlined" density="compact"></v-text-field></v-col>
                         <v-col cols="12" class="pb-0"><v-textarea v-model="entityData.descripcion" label="Descripción" variant="outlined" rows="2" density="compact"></v-textarea></v-col>
-                        <v-col cols="12" class="d-flex align-center">
-                            <v-autocomplete
-                                v-model="entityData.id_unidades"
-                                :items="mppStore.unidades"
-                                :item-title="getItemTitle"
-                                item-value="id"
-                                label="Unidades Responsables"
-                                multiple
-                                chips
-                                variant="outlined"
-                                density="compact"
-                                closable-chips
-                                class="flex-grow-1"
-                            ></v-autocomplete>
-                            <v-tooltip text="Sincronizar nombres con MOF">
-                                <template v-slot:activator="{ props }">
-                                    <v-btn v-bind="props" icon="mdi-sync" color="secondary" variant="tonal" class="ml-2 mb-4" size="small" :loading="mppStore.loading" @click="handleSync"></v-btn>
-                                </template>
-                            </v-tooltip>
-                        </v-col>
                     </v-row>
                     <v-row v-else>
-                        <v-col cols="12" md="6" class="pb-0"><v-text-field v-model="entityData.codigo" label="Código" variant="outlined" density="compact" placeholder="Ej: PROCD-001"></v-text-field></v-col>
+                        <v-col cols="12" md="6" class="pb-0"><v-text-field v-model="entityData.codigo" label="Código" variant="outlined" density="compact"></v-text-field></v-col>
                         <v-col cols="12" md="6" class="pb-0"><v-text-field v-model="entityData.version" label="Versión" variant="outlined" density="compact"></v-text-field></v-col>
                         <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.nombre" label="Nombre del Procedimiento" variant="outlined" density="compact" autofocus></v-text-field></v-col>
                         <v-col cols="12" class="pb-0"><v-textarea v-model="entityData.objetivos" label="Objetivos" variant="outlined" rows="2" density="compact"></v-textarea></v-col>
                         <v-col cols="12" class="pb-0"><v-textarea v-model="entityData.alcance" label="Alcance" variant="outlined" rows="2" density="compact"></v-textarea></v-col>
-                        <v-col cols="12" md="6" class="pb-0"><v-text-field v-model="entityData.periodicidad" label="Periodicidad" variant="outlined" density="compact"></v-text-field></v-col>
                         <v-col cols="12" md="6"><v-select v-model="entityData.estado" :items="['Activo', 'Inactivo']" label="Estado" variant="outlined" density="compact"></v-select></v-col>
                     </v-row>
                 </v-card-text>
@@ -456,20 +811,49 @@ const deleteNode = () => {
             </v-card>
         </v-dialog>
 
-        <v-dialog v-model="editDialog" max-width="600px">
-            <v-card v-if="activeNode" class="rounded-xl overflow-hidden">
-                <v-toolbar color="primary" dark><v-toolbar-title>Editar Paso</v-toolbar-title><v-spacer></v-spacer><v-btn icon="mdi-close" @click="editDialog = false"></v-btn></v-toolbar>
-                <v-card-text class="pa-6 bg-grey-lighten-4">
+        <v-dialog v-model="showResourceDialog" max-width="500px">
+            <v-card class="rounded-lg pa-4">
+                <v-card-title class="text-h5 font-weight-bold text-capitalize">{{ resourceMode === 'create' ? 'Nuevo' : 'Editar' }} {{ resourceType }}</v-card-title>
+                <v-card-text>
                     <v-row>
-                        <v-col cols="12" md="6"><v-select v-model="nodeEditData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id" label="Unidad" variant="outlined" bg-color="white"></v-select></v-col>
-                        <v-col cols="12" md="6"><v-text-field v-model="nodeEditData.responsable" label="Responsable (Cargo)" variant="outlined" bg-color="white"></v-text-field></v-col>
-                        <v-col cols="12" md="6"><v-select v-model="nodeEditData.tipo" :items="['Inicio', 'Tarea', 'Decisión', 'Fin']" label="Tipo" variant="outlined" bg-color="white"></v-select></v-col>
-                        <v-col cols="12" md="6"><v-text-field v-model="nodeEditData.label" label="Nombre" variant="outlined" bg-color="white"></v-text-field></v-col>
-                        <v-col cols="12"><v-textarea v-model="nodeEditData.requisitos" label="Requisitos" variant="outlined" rows="2" bg-color="white"></v-textarea></v-col>
-                        <v-col cols="12"><v-textarea v-model="nodeEditData.operaciones" label="Operaciones" variant="outlined" rows="3" bg-color="white"></v-textarea></v-col>
+                        <v-col cols="12">
+                            <v-text-field v-model="resourceData.nombre" v-if="['normativa', 'equipo', 'sistema'].includes(resourceType)" label="Nombre" variant="outlined" density="compact"></v-text-field>
+                            <v-text-field v-model="resourceData.denominacion" v-if="resourceType === 'indicador'" label="Denominación" variant="outlined" density="compact"></v-text-field>
+                            <v-textarea v-model="resourceData.descripcion" label="Descripción / Detalle" variant="outlined" rows="2" density="compact"></v-textarea>
+                        </v-col>
+                        <template v-if="resourceType === 'riesgo'">
+                            <v-col cols="6"><v-select v-model="resourceData.impacto" :items="['Bajo', 'Medio', 'Alto']" label="Impacto" variant="outlined" density="compact"></v-select></v-col>
+                            <v-col cols="6"><v-select v-model="resourceData.probabilidad" :items="['Baja', 'Media', 'Alta']" label="Probabilidad" variant="outlined" density="compact"></v-select></v-col>
+                        </template>
+                        <v-col cols="12" v-if="resourceType === 'control'">
+                            <v-select v-model="resourceData.tipo_control" :items="['Preventivo', 'Detectivo', 'Correctivo']" label="Tipo de Control" variant="outlined" density="compact"></v-select>
+                        </v-col>
+                        <template v-if="resourceType === 'normativa'">
+                            <v-col cols="12"><v-text-field v-model="resourceData.codigo" label="Código" variant="outlined" density="compact"></v-text-field></v-col>
+                            <v-col cols="12"><v-text-field v-model="resourceData.url" label="URL" variant="outlined" density="compact"></v-text-field></v-col>
+                        </template>
                     </v-row>
                 </v-card-text>
-                <v-card-actions class="pa-4 bg-white"><v-btn color="error" variant="text" @click="deleteNode">Eliminar Paso</v-btn><v-spacer></v-spacer><v-btn color="primary" variant="elevated" @click="updateNodeInfo" class="px-6">Actualizar</v-btn></v-card-actions>
+                <v-card-actions><v-spacer></v-spacer><v-btn variant="text" @click="showResourceDialog = false">Cancelar</v-btn><v-btn color="primary" variant="elevated" @click="handleSaveResource">Guardar</v-btn></v-card-actions>
+            </v-card>
+        </v-dialog>
+
+        <v-dialog v-model="editDialog" max-width="800px">
+            <v-card v-if="activeNode" class="rounded-xl overflow-hidden">
+                <v-toolbar color="primary" dark><v-toolbar-title>Editar Paso</v-toolbar-title><v-spacer></v-spacer><v-btn icon="mdi-close" @click="editDialog = false"></v-btn></v-toolbar>
+                <v-card-text class="pa-0">
+                    <v-tabs v-model="nodeTab" bg-color="primary-lighten-5" grow><v-tab value="general">General</v-tab><v-tab value="calidad">Calidad</v-tab></v-tabs>
+                    <v-window v-model="nodeTab" class="pa-6">
+                        <v-window-item value="general">
+                            <v-row>
+                                <v-col cols="12" md="6"><v-select v-model="nodeEditData.unidadEjecutoraId" :items="mppStore.unidades" :item-title="getItemTitle" item-value="id_unidad" label="Unidad" variant="outlined"></v-select></v-col>
+                                <v-col cols="12" md="6"><v-text-field v-model="nodeEditData.responsable" label="Responsable" variant="outlined"></v-text-field></v-col>
+                                <v-col cols="12"><v-textarea v-model="nodeEditData.operaciones" label="Operaciones" variant="outlined" rows="3"></v-textarea></v-col>
+                            </v-row>
+                        </v-window-item>
+                    </v-window>
+                </v-card-text>
+                <v-card-actions class="pa-4"><v-btn color="error" variant="text" @click="deleteNode">Eliminar</v-btn><v-spacer></v-spacer><v-btn color="primary" variant="elevated" @click="updateNodeInfo">Actualizar</v-btn></v-card-actions>
             </v-card>
         </v-dialog>
 
@@ -490,9 +874,39 @@ const deleteNode = () => {
 .mpp-node-order { position: absolute; top: -12px; left: -12px; font-weight: 900; font-size: 0.75rem; width: 26px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 .mpp-node-label { font-weight: 800; font-size: 0.95rem; margin-bottom: 2px; line-height: 1.1; }
 .mpp-node-resp { font-size: 0.75rem; font-style: italic; opacity: 0.9; }
-.mpp-node-badges { position: absolute; bottom: 6px; right: 6px; }
 .node-decision { clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); width: 240px; height: 240px; padding: 55px 40px !important; text-align: center; }
 .node-inicio, .node-fin { border-radius: 50px; min-width: 160px; text-align: center; border-width: 4px; }
 :deep(.vue-flow__node.selected) .mpp-node-container { border-color: #4338ca; transform: scale(1.05); }
 :deep(.vue-flow__edge-label) { background: white; padding: 4px 10px; border-radius: 6px; font-weight: 900; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+/* ANIMACIONES */
+@keyframes pulse-green {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+.pulse-save {
+  animation: pulse-green 2s infinite !important;
+  border: 2px solid #4CAF50 !important;
+}
+
+/* ESTILOS DE IMPRESIÓN (PDF LIMPIO) */
+@media print {
+    .sidebar, .v-btn, .v-divider, .resize-handle, .vue-flow__controls, .vue-flow__background {
+        display: none !important;
+    }
+    .diagram-container {
+        width: 100vw !important;
+        height: 100vh !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+    .designer-layout {
+        display: block !important;
+    }
+}
 </style>
