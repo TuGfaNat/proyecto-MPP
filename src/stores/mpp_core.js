@@ -8,6 +8,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const procesos = ref([]);
     const procedimientos = ref([]);
     const cargoProcesos = ref([]);
+    const acciones = ref([]);
     const pasos = ref([]); 
     const operaciones = ref([]); 
     
@@ -38,6 +39,15 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const BASE_URL_MOF = "http://localhost:3000/mof";
 
     // --- LECTURA (GET) ---
+    const fetchAcciones = async () => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_FLUX}/acciones`);
+            acciones.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
     const fetchUnidades = async () => {
         loading.value = true;
         try {
@@ -47,6 +57,74 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         finally { loading.value = false; }
     };
 
+    const fetchCargos = async () => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_ORG}/cargos`);
+            cargos.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchProcesos = async () => {
+        loading.value = true;
+        try {
+            await fetchUnidades();
+            const response = await axios.get(`${BASE_URL_MPP}/procesos`);
+            procesos.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchProcedimientos = async (procesoId) => {
+        loading.value = true;
+        const targetId = Number(procesoId);
+        try {
+            const response = await axios.get(`${BASE_URL_MPP}/procedimientos`);
+            const all = response.data.data || response.data;
+            // Filtro más permisivo
+            procedimientos.value = all.filter(p => {
+                const pId = p.proceso?.id_proceso || p.id_proceso || p.proceso;
+                return Number(pId) === targetId;
+            });
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchCargoProcesos = async (procesoId) => {
+        loading.value = true;
+        const targetId = Number(procesoId);
+        try {
+            const response = await axios.get(`${BASE_URL_MPP}/cargo-procesos`);
+            const all = response.data.data || response.data;
+            cargoProcesos.value = all.filter(cp => {
+                const cpId = cp.proceso?.id_proceso || cp.id_proceso || cp.proceso;
+                return Number(cpId) === targetId;
+            });
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchOperaciones = async () => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_FLUX}/operaciones`);
+            operaciones.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchPasos = async (procedimientoId) => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_FLUX}/pasos/procedimiento/${procedimientoId}`);
+            pasos.value = response.data.data || response.data;
+            return pasos.value;
+        } catch (err) { error.value = err.message; return []; }
+        finally { loading.value = false; }
+    };
+
+    // --- RECURSOS Y CALIDAD ---
     const fetchRiesgos = async () => {
         loading.value = true;
         try {
@@ -118,112 +196,32 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         } catch (err) { error.value = err.message; }
         finally { loading.value = false; }
     };
+
+    // --- SINCRONIZACIÓN MOF ---
     const syncUnidades = async () => {
-        loading.value = true;
         try {
-            await axios.post(`${BASE_URL_MOF}/sync`);
-            await fetchUnidades();
-            return true;
-        } catch (err) { error.value = err.message; return false; }
-        finally { loading.value = false; }
+            const response = await axios.post(`${BASE_URL_MOF}/sync`);
+            return response.status === 201;
+        } catch (e) { console.error(e); return false; }
     };
 
     const syncCargos = async () => {
-        loading.value = true;
         try {
-            await axios.post(`${BASE_URL_MOF}/cargos/sync`);
-            await fetchCargos();
-            await fetchUnidades(); 
-            return true;
-        } catch (err) { error.value = err.message; return false; }
-        finally { loading.value = false; }
-    };
-
-    const fetchCargos = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_ORG}/cargos`);
-            cargos.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchProcesos = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_MPP}/procesos`);
-            procesos.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchProcedimientos = async (procesoId) => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_MPP}/procedimientos`, { params: { procesoId } });
-            const allProc = response.data.data || response.data;
-            procedimientos.value = allProc.filter(p => p.id_proceso === procesoId);
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchCargoProcesos = async (procesoId) => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_MPP}/cargo-procesos`);
-            const allCargoProcesos = response.data.data || response.data;
-            cargoProcesos.value = allCargoProcesos.filter(cp => cp.id_proceso === procesoId);
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchOperaciones = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_FLUX}/operaciones`);
-            operaciones.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchPasos = async (procedimientoId) => {
-        const savedLayout = localStorage.getItem(`mpp_flow_${procedimientoId}`);
-        if (savedLayout) {
-            const data = JSON.parse(savedLayout);
-            pasos.value = data;
-            return data;
-        }
-        return [];
+            const response = await axios.post(`${BASE_URL_MOF}/cargos/sync`);
+            return response.status === 201;
+        } catch (e) { console.error(e); return false; }
     };
 
     // --- ESCRITURA (POST/PATCH/DELETE) ---
-    const saveProceso = async (data) => {
-        try {
-            const res = await axios.post(`${BASE_URL_MPP}/procesos`, data);
-            return res.data.data || res.data;
-        } catch (err) { error.value = err.message; throw err; }
-    };
-
-    const saveProcedimiento = async (data) => {
-        try {
-            const res = await axios.post(`${BASE_URL_MPP}/procedimientos`, data);
-            return res.data.data || res.data;
-        } catch (err) { error.value = err.message; throw err; }
-    };
-
-    const saveCargoProceso = async (data) => {
-        try {
-            const res = await axios.post(`${BASE_URL_MPP}/cargo-procesos`, data);
-            return res.data.data || res.data;
-        } catch (err) { error.value = err.message; throw err; }
-    };
-
+    const saveProceso = (data) => axios.post(`${BASE_URL_MPP}/procesos`, data).then(r => r.data);
     const updateProceso = (id, data) => axios.patch(`${BASE_URL_MPP}/procesos/${id}`, data);
     const deleteProceso = (id) => axios.delete(`${BASE_URL_MPP}/procesos/${id}`);
 
+    const saveProcedimiento = (data) => axios.post(`${BASE_URL_MPP}/procedimientos`, data).then(r => r.data);
     const updateProcedimiento = (id, data) => axios.patch(`${BASE_URL_MPP}/procedimientos/${id}`, data);
     const deleteProcedimiento = (id) => axios.delete(`${BASE_URL_MPP}/procedimientos/${id}`);
 
+    const saveCargoProceso = (data) => axios.post(`${BASE_URL_MPP}/cargo-procesos`, data);
     const updateCargoProceso = (id, data) => axios.patch(`${BASE_URL_MPP}/cargo-procesos/${id}`, data);
     const deleteCargoProceso = (id) => axios.delete(`${BASE_URL_MPP}/cargo-procesos/${id}`);
 
@@ -238,8 +236,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const saveRequisito = (data) => axios.post(`${BASE_URL_REC}/requisitos`, data);
     const updateRequisito = (id, data) => axios.patch(`${BASE_URL_REC}/requisitos/${id}`, data);
     const deleteRequisito = (id) => axios.delete(`${BASE_URL_REC}/requisitos/${id}`);
-    
-    // CRUD CALIDAD
+
     const saveNormativa = (data) => axios.post(`${BASE_URL_CAL}/normativas`, data);
     const updateNormativa = (id, data) => axios.patch(`${BASE_URL_CAL}/normativas/${id}`, data);
     const deleteNormativa = (id) => axios.delete(`${BASE_URL_CAL}/normativas/${id}`);
@@ -248,7 +245,6 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const updateIndicador = (id, data) => axios.patch(`${BASE_URL_CAL}/indicadores/${id}`, data);
     const deleteIndicador = (id) => axios.delete(`${BASE_URL_CAL}/indicadores/${id}`);
 
-    // CRUD RECURSOS ADICIONALES
     const saveEquipo = (data) => axios.post(`${BASE_URL_REC}/equipos`, data);
     const updateEquipo = (id, data) => axios.patch(`${BASE_URL_REC}/equipos/${id}`, data);
     const deleteEquipo = (id) => axios.delete(`${BASE_URL_REC}/equipos/${id}`);
@@ -257,17 +253,21 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const updateSistemaInformacion = (id, data) => axios.patch(`${BASE_URL_REC}/sistemas-informacion/${id}`, data);
     const deleteSistemaInformacion = (id) => axios.delete(`${BASE_URL_REC}/sistemas-informacion/${id}`);
 
+    const saveAccion = (data) => axios.post(`${BASE_URL_FLUX}/acciones`, data);
+    const updateAccion = (id, data) => axios.patch(`${BASE_URL_FLUX}/acciones/${id}`, data);
+    const deleteAccion = (id) => axios.delete(`${BASE_URL_FLUX}/acciones/${id}`);
+
     const saveFlujoCompleto = async (procedimientoId, listaPasos) => {
         localStorage.setItem(`mpp_flow_${procedimientoId}`, JSON.stringify(listaPasos));
         return true;
     };
 
     return {
-        unidades, cargos, procesos, procedimientos, cargoProcesos, pasos, operaciones,
+        unidades, cargos, procesos, procedimientos, cargoProcesos, pasos, operaciones, acciones,
         riesgos, controles, requisitos, normativas, indicadores, equipos, sistemasInformacion, documentosReferencia,
         currentContext, loading, error,
         fetchUnidades, fetchRiesgos, fetchControles, fetchRequisitos, fetchNormativas, fetchIndicadores, fetchEquipos, fetchSistemasInformacion, fetchDocumentosReferencia,
-        syncUnidades, syncCargos, fetchCargos, fetchProcesos, fetchProcedimientos, fetchCargoProcesos, fetchOperaciones, fetchPasos,
+        syncUnidades, syncCargos, fetchCargos, fetchProcesos, fetchProcedimientos, fetchCargoProcesos, fetchOperaciones, fetchPasos, fetchAcciones,
         saveProceso, updateProceso, deleteProceso,
         saveProcedimiento, updateProcedimiento, deleteProcedimiento,
         saveCargoProceso, updateCargoProceso, deleteCargoProceso,
@@ -278,6 +278,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         saveIndicador, updateIndicador, deleteIndicador,
         saveEquipo, updateEquipo, deleteEquipo,
         saveSistemaInformacion, updateSistemaInformacion, deleteSistemaInformacion,
+        saveAccion, updateAccion, deleteAccion,
         saveFlujoCompleto
     };
 });
