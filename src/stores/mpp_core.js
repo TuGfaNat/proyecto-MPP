@@ -21,6 +21,49 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const sistemasInformacion = ref([]);
     const documentosReferencia = ref([]);
 
+    // --- REGISTRO DE ESQUEMAS (Truth Discovery) ---
+    const schemas = ref({
+        proceso: {
+            title: "Proceso",
+            icon: "mdi-hexagon-multiple",
+            fields: [
+                { key: "nombre", label: "Nombre del Proceso", type: "text", required: true },
+                { key: "codigo", label: "Código Único", type: "text" },
+                { key: "descripcion", label: "Descripción Detallada", type: "textarea" }
+            ],
+            endpoints: { save: "procesos", update: "procesos", fetch: "procesos" }
+        },
+        procedimiento: {
+            title: "Procedimiento",
+            icon: "mdi-file-edit",
+            fields: [
+                { key: "nombre", label: "Nombre del Procedimiento", type: "text", required: true },
+                { key: "codigo", label: "Código Único", type: "text" },
+                { key: "id_proceso", label: "Proceso Padre", type: "hidden" },
+                { key: "objetivos", label: "Objetivos", type: "textarea" },
+                { key: "alcance", label: "Alcance", type: "textarea" },
+                { key: "periodicidad", label: "Periodicidad", type: "text" },
+                { key: "version", label: "Versión", type: "text", default: "1.0" },
+                { key: "estado", label: "Estado", type: "select", options: ["Activo", "Inactivo", "En Revisión"], default: "Activo" },
+                { key: "id_instalaciones", label: "Instalaciones", type: "select-multiple", optionsSource: "unidades", itemTitle: "nombre", itemValue: "id_unidad" }
+            ],
+            endpoints: { save: "procedimientos", update: "procedimientos", fetch: "procedimientos" }
+        },
+        normativa: {
+            title: "Marco Normativo",
+            icon: "mdi-gavel",
+            fields: [
+                { key: "nombre", label: "Nombre de la Norma", type: "text", required: true },
+                { key: "codigo", label: "Código / Referencia", type: "text" },
+                { key: "url", label: "Enlace al Documento", type: "text" },
+                { key: "fecha_emision", label: "Fecha de Emisión", type: "date" },
+                { key: "descripcion", label: "Resumen / Detalle", type: "textarea" }
+            ],
+            endpoints: { save: "normativas", update: "normativas", fetch: "normativas" },
+            parentLink: { key: "id_procedimientos", type: "array" }
+        }
+    });
+
     const currentContext = ref({
         unidad: null,
         proceso: null,
@@ -262,10 +305,44 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         return true;
     };
 
+    // --- CRUD GENÉRICO (Chameleon Engine) ---
+    const saveEntity = async (type, data) => {
+        const schema = schemas.value[type];
+        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
+        
+        // Determinar URL base
+        let baseUrl = BASE_URL_MPP;
+        if (schema.endpoints.save === "normativas") baseUrl = BASE_URL_CAL;
+        
+        const response = await axios.post(`${baseUrl}/${schema.endpoints.save}`, data);
+        return response.data.data || response.data;
+    };
+
+    const updateEntity = async (type, id, data) => {
+        const schema = schemas.value[type];
+        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
+        
+        let baseUrl = BASE_URL_MPP;
+        if (schema.endpoints.update === "normativas") baseUrl = BASE_URL_CAL;
+        
+        const response = await axios.patch(`${baseUrl}/${schema.endpoints.update}/${id}`, data);
+        return response.data.data || response.data;
+    };
+
+    const deleteEntity = async (type, id) => {
+        const schema = schemas.value[type];
+        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
+        
+        let baseUrl = BASE_URL_MPP;
+        if (schema.endpoints.save === "normativas") baseUrl = BASE_URL_CAL;
+        
+        return await axios.delete(`${baseUrl}/${schema.endpoints.save}/${id}`);
+    };
+
     return {
         unidades, cargos, procesos, procedimientos, cargoProcesos, pasos, operaciones, acciones,
         riesgos, controles, requisitos, normativas, indicadores, equipos, sistemasInformacion, documentosReferencia,
-        currentContext, loading, error,
+        currentContext, loading, error, schemas,
         fetchUnidades, fetchRiesgos, fetchControles, fetchRequisitos, fetchNormativas, fetchIndicadores, fetchEquipos, fetchSistemasInformacion, fetchDocumentosReferencia,
         syncUnidades, syncCargos, fetchCargos, fetchProcesos, fetchProcedimientos, fetchCargoProcesos, fetchOperaciones, fetchPasos, fetchAcciones,
         saveProceso, updateProceso, deleteProceso,
@@ -279,6 +356,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         saveEquipo, updateEquipo, deleteEquipo,
         saveSistemaInformacion, updateSistemaInformacion, deleteSistemaInformacion,
         saveAccion, updateAccion, deleteAccion,
-        saveFlujoCompleto
+        saveFlujoCompleto,
+        saveEntity, updateEntity, deleteEntity
     };
 });

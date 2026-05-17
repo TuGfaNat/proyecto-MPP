@@ -7,10 +7,12 @@ Este proyecto es el cliente web para la gestión y diseño de manuales de proces
 ## 🚀 Guía de Instalación
 
 ### Requisitos Previos
-*   **Node.js** (v18 o superior)
-*   **npm** o **pnpm**
+
+- **Node.js** (v18 o superior)
+- **npm** o **pnpm**
 
 ### Pasos para iniciar
+
 1.  **Entrar a la carpeta del proyecto:**
     ```bash
     cd proyecto-MPP
@@ -31,11 +33,11 @@ Este proyecto es el cliente web para la gestión y diseño de manuales de proces
 
 El frontend utiliza un stack moderno y reactivo:
 
-*   **Vue 3 (Composition API):** Framework principal para la lógica de componentes.
-*   **Vuetify 3:** Librería de componentes UI para una interfaz limpia y profesional.
-*   **Pinia:** Gestión de estado global (Store) para la persistencia y sincronización de datos.
-*   **VueFlow:** Motor gráfico utilizado en el **Diseñador de Matriz** para la creación de diagramas de flujo.
-*   **Axios:** Cliente HTTP para la comunicación con el API.
+- **Vue 3 (Composition API):** Framework principal para la lógica de componentes.
+- **Vuetify 3:** Librería de componentes UI para una interfaz limpia y profesional.
+- **Pinia:** Gestión de estado global (Store) para la persistencia y sincronización de datos.
+- **VueFlow:** Motor gráfico utilizado en el **Diseñador de Matriz** para la creación de diagramas de flujo.
+- **Axios:** Cliente HTTP para la comunicación con el API.
 
 ---
 
@@ -50,13 +52,15 @@ El frontend utiliza un stack moderno y reactivo:
 
 ## 🛠️ Comandos de Desarrollo
 
-| Comando | Descripción |
-| :--- | :--- |
-| `npm run dev` | Inicia el servidor de desarrollo con Hot Reload. |
-| `npm run build` | Genera los archivos optimizados para producción en la carpeta `dist/`. |
-| `npm run preview` | Previsualiza localmente la versión de producción generada. |
+| Comando           | Descripción                                                            |
+| :---------------- | :--------------------------------------------------------------------- |
+| `npm run dev`     | Inicia el servidor de desarrollo con Hot Reload.                       |
+| `npm run build`   | Genera los archivos optimizados para producción en la carpeta `dist/`. |
+| `npm run preview` | Previsualiza localmente la versión de producción generada.             |
 
 ---
 
 ## ⚖️ Licencia
-Este proyecto es de uso interno y confidencial.
+
+Este proyecto es de uso interno y confidencial del TIC FCPN.
+By TuGfaNat ☝🏻🤓

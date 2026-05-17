@@ -336,142 +336,94 @@ const isProcedimientoInactivo = computed(
     )?.estado === "Inactivo",
 );
 
-// --- DIÁLOGOS CRUD ---
+// --- DIÁLOGOS CRUD (ENTIDADES) ---
 
 const openDialog = async (type, mode = "create") => {
   entityType.value = type;
   entityMode.value = mode;
+  const schema = mppStore.schemas[type];
   const list = type === "proceso" ? mppStore.procesos : mppStore.procedimientos;
-  const id =
-    type === "proceso" ? selectedProceso.value : selectedProcedimiento.value;
-  const item = list.find(
-    (i) => (type === "proceso" ? i.id_proceso : i.id_procedimiento) === id,
-  );
-  if (mode === "edit" && item) {
-    entityData.value = {
-      id: type === "proceso" ? item.id_proceso : item.id_procedimiento,
-      codigo: item.codigo || "",
-      nombre: item.nombre || "",
-      descripcion: item.descripcion || "",
-      id_unidades: item.unidades?.map((u) => u.id_unidad) || [],
-      objetivos: item.objetivos || "",
-      alcance: item.alcance || "",
-      periodicidad: item.periodicidad || "",
-      version: item.version || "1.0",
-      estado: item.estado || "Activo",
-    };
-  } else {
-    entityData.value = {
-      id: null,
-      codigo: "",
-      nombre: "",
-      descripcion: "",
-      id_unidades: [],
-      objetivos: "",
-      alcance: "",
-      periodicidad: "",
-      version: "1.0",
-      estado: "Activo",
-    };
-  }
+  const id = type === "proceso" ? selectedProceso.value : selectedProcedimiento.value;
+  const item = list.find((i) => (type === "proceso" ? i.id_proceso : i.id_procedimiento) === id);
+
+  // Inicializar data preservando el estado de unidades que no está en el esquema del modal
+  const newData = { 
+    id: (mode === "edit" && item) ? (type === "proceso" ? item.id_proceso : item.id_procedimiento) : null,
+    id_unidades: entityData.value.id_unidades || []
+  };
+
+  schema.fields.forEach(field => {
+    if (field.type === "hidden") {
+        if (field.key === "id_proceso") newData[field.key] = selectedProceso.value;
+    } else {
+        // 1. Intentar obtener el valor directo
+        newData[field.key] = (mode === "edit" && item && item[field.key] !== undefined) ? item[field.key] : (field.default || (field.type.includes("multiple") ? [] : ""));
+        
+        // 2. Mapeo automático de Objetos a IDs para campos relacionales (Chameleon Logic)
+        if (mode === "edit" && item && field.type === "select-multiple") {
+            const relationalKey = field.key.replace("id_", ""); 
+            if (item[relationalKey] && Array.isArray(item[relationalKey])) {
+                const idKey = field.itemValue || "id";
+                newData[field.key] = item[relationalKey].map(obj => obj[idKey]);
+            }
+        }
+    }
+  });
+  entityData.value = newData;
   showEntityDialog.value = true;
 };
 
 const handleSaveEntity = async () => {
   try {
-    if (entityMode.value === "create") {
-      if (entityType.value === "proceso") {
-        const res = await mppStore.saveProceso({
-          codigo: entityData.value.codigo,
-          nombre: entityData.value.nombre,
-          descripcion: entityData.value.descripcion,
-          id_unidades: entityData.value.id_unidades.map((id) => Number(id)),
-        });
-        await mppStore.fetchProcesos();
-        selectedProceso.value = res.id_proceso;
-      } else {
-        const payload = {
-          id_proceso: Number(selectedProceso.value),
-          codigo: entityData.value.codigo,
-          nombre: entityData.value.nombre,
-          objetivos: entityData.value.objetivos,
-          alcance: entityData.value.alcance,
-          periodicidad: entityData.value.periodicidad,
-          version: entityData.value.version,
-          estado: entityData.value.estado,
-        };
-        const res = await mppStore.saveProcedimiento(payload);
-        await mppStore.fetchProcedimientos(selectedProceso.value);
-        selectedProcedimiento.value = res.id_procedimiento;
-      }
+    isSaving.value = true;
+    const type = entityType.value;
+    const isEdit = entityMode.value === "edit";
+    const payload = { ...entityData.value };
+    const id = payload.id;
+    delete payload.id;
+
+    let result;
+    if (isEdit) {
+      result = await mppStore.updateEntity(type, id, payload);
     } else {
-      if (entityType.value === "proceso") {
-        await mppStore.updateProceso(entityData.value.id, {
-          codigo: entityData.value.codigo,
-          nombre: entityData.value.nombre,
-          descripcion: entityData.value.descripcion,
-          id_unidades: entityData.value.id_unidades.map((id) => Number(id)),
-        });
-        await mppStore.fetchProcesos();
-      } else {
-        await mppStore.updateProcedimiento(entityData.value.id, {
-          id_proceso: Number(selectedProceso.value),
-          codigo: entityData.value.codigo,
-          nombre: entityData.value.nombre,
-          objetivos: entityData.value.objetivos,
-          alcance: entityData.value.alcance,
-          periodicidad: entityData.value.periodicidad,
-          version: entityData.value.version,
-          estado: entityData.value.estado,
-        });
-        await mppStore.fetchProcedimientos(selectedProceso.value);
-      }
+      result = await mppStore.saveEntity(type, payload);
     }
+
+    if (type === "proceso") {
+        await mppStore.fetchProcesos();
+        if (!isEdit) selectedProceso.value = result.id_proceso;
+    } else {
+        await mppStore.fetchProcedimientos(selectedProceso.value);
+        if (!isEdit) selectedProcedimiento.value = result.id_procedimiento;
+    }
+
     showEntityDialog.value = false;
-    snackbar.value = {
-      show: true,
-      text: "Guardado correctamente",
-      color: "success",
-    };
+    snackbar.value = { show: true, text: "Guardado correctamente", color: "success" };
   } catch (e) {
     snackbar.value = { show: true, text: "Error al guardar", color: "error" };
+  } finally {
+    isSaving.value = false;
   }
-};
-
-// --- CONFIGURACIÓN DINÁMICA DE RECURSOS ---
-const RESOURCE_METADATA = {
-  normativa: {
-    title: "Marco Normativo",
-    icon: "mdi-gavel",
-    fields: [
-      { key: "nombre", label: "Nombre", type: "text", required: true },
-      { key: "codigo", label: "Código", type: "text" },
-      { key: "url", label: "URL del Documento", type: "text" },
-      { key: "descripcion", label: "Descripción / Detalle", type: "textarea" },
-    ],
-    storeMethods: { save: "saveNormativa", update: "updateNormativa", fetch: "fetchNormativas" },
-  },
 };
 
 const openResourceDialog = (type, mode = "create", item = null) => {
   resourceType.value = type;
   resourceMode.value = mode;
-  const metadata = RESOURCE_METADATA[type];
-  if (mode === "edit" && item) {
-    const idKey = `id_${type}`;
-    const id = item[idKey] || item.id;
-    resourceData.value = { ...item, id };
-  } else {
-    resourceData.value = { id: null };
-    metadata.fields.forEach((f) => (resourceData.value[f.key] = ""));
-  }
+  const schema = mppStore.schemas[type];
+  
+  const newData = { id: (mode === "edit" && item) ? (item.id_normativa || item.id) : null };
+  schema.fields.forEach(field => {
+    newData[field.key] = (mode === "edit" && item) ? item[field.key] : (field.default || "");
+  });
+  resourceData.value = newData;
   showResourceDialog.value = true;
 };
 
 const handleSaveResource = async () => {
   try {
+    isSaving.value = true;
     const type = resourceType.value;
-    const metadata = RESOURCE_METADATA[type];
+    const schema = mppStore.schemas[type];
     const isEdit = resourceMode.value === "edit";
     const payload = { ...resourceData.value };
     const id = payload.id;
@@ -479,25 +431,25 @@ const handleSaveResource = async () => {
 
     let result;
     if (isEdit) {
-      await mppStore[metadata.storeMethods.update](id, payload);
-      result = { ...payload, id_normativa: id };
+      result = await mppStore.updateEntity(type, id, payload);
     } else {
-      const res = await mppStore[metadata.storeMethods.save](payload);
-      result = res.data || res;
+      result = await mppStore.saveEntity(type, payload);
     }
 
-    if (type === "normativa" && selectedProcedimiento.value) {
+    if (type === "normativa" && selectedProcedimiento.value && !isEdit) {
       const procedureId = Number(selectedProcedimiento.value);
       const normativaId = result.id_normativa || result.id;
-      await mppStore.updateNormativa(normativaId, { id_procedimientos: [procedureId] });
+      await mppStore.updateEntity("normativa", normativaId, { id_procedimientos: [procedureId] });
       selectedNormativa.value = normativaId;
     }
 
-    await mppStore[metadata.storeMethods.fetch]();
+    await mppStore.fetchNormativas();
     showResourceDialog.value = false;
-    snackbar.value = { show: true, text: `${metadata.title} guardado`, color: "success" };
+    snackbar.value = { show: true, text: `${schema.title} guardado`, color: "success" };
   } catch (e) {
     snackbar.value = { show: true, text: "Error: " + (e.response?.data?.message || e.message), color: "error" };
+  } finally {
+    isSaving.value = false;
   }
 };
 
@@ -505,11 +457,9 @@ const handleDeleteResource = async () => {
   if (!confirm("¿Está seguro de eliminar?")) return;
   try {
     const type = resourceType.value;
-    const metadata = RESOURCE_METADATA[type];
     const id = resourceData.value.id;
-    const deleteMethod = metadata.storeMethods.save.replace("save", "delete");
-    await mppStore[deleteMethod](id);
-    await mppStore[metadata.storeMethods.fetch]();
+    await mppStore.deleteEntity(type, id);
+    await mppStore.fetchNormativas();
     if (selectedNormativa.value === id) selectedNormativa.value = null;
     showResourceDialog.value = false;
     snackbar.value = { show: true, text: "Eliminado", color: "success" };
@@ -695,39 +645,43 @@ onUnmounted(() => {
         @back="isLocked = false"
     />
 
-    <!-- DIÁLOGOS CRUD (ENTIDADES) -->
+    <!-- MODALES UNIFICADOS (Chameleon Engine) -->
     <v-dialog v-model="showEntityDialog" max-width="600px">
-      <v-card class="rounded-xl pa-4">
+      <v-card class="rounded-xl pa-4" v-if="entityType && mppStore.schemas[entityType]">
         <v-card-title class="text-h5 font-weight-bold d-flex align-center">
-          <v-icon color="primary" class="mr-2">{{ entityType === "proceso" ? "mdi-hexagon-multiple" : "mdi-file-edit" }}</v-icon>
-          {{ entityMode === "create" ? "Nuevo" : "Editar" }} {{ entityType }}
+          <v-icon color="primary" class="mr-2">{{ mppStore.schemas[entityType].icon }}</v-icon>
+          {{ entityMode === "create" ? "Nuevo" : "Editar" }} {{ mppStore.schemas[entityType].title.toUpperCase() }}
         </v-card-title>
         <v-card-text>
           <v-row dense>
-            <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.codigo" label="Código" variant="outlined" density="compact"></v-text-field></v-col>
-            <v-col cols="12" class="pb-0"><v-text-field v-model="entityData.nombre" label="Nombre" variant="outlined" density="compact"></v-text-field></v-col>
-            <v-col cols="12" v-if="entityType === 'proceso'" class="pb-0"><v-textarea v-model="entityData.descripcion" label="Descripción" variant="outlined" rows="2" density="compact"></v-textarea></v-col>
+            <v-col v-for="field in mppStore.schemas[entityType].fields.filter(f => f.type !== 'hidden')" :key="field.key" cols="12">
+              <v-text-field v-if="['text', 'date'].includes(field.type)" v-model="entityData[field.key]" :label="field.label" :type="field.type" variant="outlined" density="compact"></v-text-field>
+              <v-textarea v-else-if="field.type === 'textarea'" v-model="entityData[field.key]" :label="field.label" variant="outlined" density="compact" rows="2"></v-textarea>
+              <v-select v-else-if="field.type === 'select-multiple'" v-model="entityData[field.key]" :items="mppStore[field.optionsSource]" :item-title="field.itemTitle" :item-value="field.itemValue" :label="field.label" multiple chips closable-chips variant="outlined" density="compact"></v-select>
+              <v-select v-else-if="field.type === 'select'" v-model="entityData[field.key]" :items="field.options" :label="field.label" variant="outlined" density="compact"></v-select>
+            </v-col>
           </v-row>
         </v-card-text>
         <v-card-actions class="px-6 pb-4">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="showEntityDialog = false" class="rounded-lg text-uppercase">Cancelar</v-btn>
-          <v-btn color="primary" variant="elevated" @click="handleSaveEntity" class="rounded-lg px-6 text-uppercase">Guardar {{ entityType }}</v-btn>
+          <v-btn color="primary" variant="elevated" @click="handleSaveEntity" :loading="isSaving" class="rounded-lg px-6 text-uppercase">Guardar {{ mppStore.schemas[entityType].title }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <v-dialog v-model="showResourceDialog" max-width="600px">
-      <v-card class="rounded-xl pa-4" v-if="resourceType && RESOURCE_METADATA[resourceType]">
+      <v-card class="rounded-xl pa-4" v-if="resourceType && mppStore.schemas[resourceType]">
         <v-card-title class="text-h5 font-weight-bold d-flex align-center">
-          <v-icon color="primary" class="mr-2">{{ RESOURCE_METADATA[resourceType].icon }}</v-icon>
-          {{ resourceMode === "create" ? "Nuevo" : "Editar" }} {{ RESOURCE_METADATA[resourceType].title }}
+          <v-icon color="primary" class="mr-2">{{ mppStore.schemas[resourceType].icon }}</v-icon>
+          {{ resourceMode === "create" ? "Nuevo" : "Editar" }} {{ mppStore.schemas[resourceType].title.toUpperCase() }}
         </v-card-title>
         <v-card-text>
           <v-row dense>
-            <v-col v-for="field in RESOURCE_METADATA[resourceType].fields" :key="field.key" cols="12">
-              <v-text-field v-if="field.type === 'text'" v-model="resourceData[field.key]" :label="field.label" variant="outlined" density="compact" :rules="field.required ? [(v) => !!v || 'Obligatorio'] : []"></v-text-field>
+            <v-col v-for="field in mppStore.schemas[resourceType].fields" :key="field.key" cols="12">
+              <v-text-field v-if="['text', 'date'].includes(field.type)" v-model="resourceData[field.key]" :label="field.label" :type="field.type" variant="outlined" density="compact"></v-text-field>
               <v-textarea v-else-if="field.type === 'textarea'" v-model="resourceData[field.key]" :label="field.label" variant="outlined" density="compact" rows="3"></v-textarea>
+              <v-select v-else-if="field.type === 'select'" v-model="resourceData[field.key]" :items="field.options" :label="field.label" variant="outlined" density="compact"></v-select>
             </v-col>
           </v-row>
         </v-card-text>
@@ -735,7 +689,7 @@ onUnmounted(() => {
           <v-btn v-if="resourceMode === 'edit'" color="error" variant="text" @click="handleDeleteResource" class="rounded-lg text-uppercase">Eliminar</v-btn>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="showResourceDialog = false" class="rounded-lg text-uppercase">Cancelar</v-btn>
-          <v-btn color="primary" variant="elevated" @click="handleSaveResource" :loading="isSaving" class="rounded-lg px-6 text-uppercase">Guardar</v-btn>
+          <v-btn color="primary" variant="elevated" @click="handleSaveResource" :loading="isSaving" class="rounded-lg px-6 text-uppercase">Guardar {{ mppStore.schemas[resourceType].title }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

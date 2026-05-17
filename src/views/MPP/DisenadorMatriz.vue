@@ -159,6 +159,14 @@ const deleteNode = () => {
 
 // --- AUXILIARES UI ---
 
+const currentProcedimiento = computed(() => {
+    return mppStore.procedimientos.find(p => p.id_procedimiento === props.procedimientoId)
+})
+
+const linkedNormativa = computed(() => {
+    return mppStore.normativas.find(n => n.procedimientos?.some(p => p.id_procedimiento === props.procedimientoId))
+})
+
 const getItemTitle = (item) =>
   item?.denominacion ||
   item?.nombre_unidad ||
@@ -263,33 +271,58 @@ const stopResizing = () => {
               @click="emit('back')"
               class="mr-2"
             ></v-btn>
-            <span class="text-overline font-weight-bold text-primary"
-              >Contexto</span
-            >
+            <span class="text-overline font-weight-bold text-primary">Contexto Institucional</span>
           </div>
-          <v-card variant="flat" class="bg-primary-lighten-5 rounded-lg pa-3">
-            <p class="text-caption font-weight-bold mb-1 text-truncate">
-              PROCESO:
-              {{ getItemTitle(mppStore.procesos.find(p => p.id_proceso === props.procesoId)) }}
-            </p>
-            <p class="text-caption font-weight-bold mb-1 text-primary text-truncate">
-              PROCEDIMIENTO:
-              {{ getItemTitle(mppStore.procedimientos.find(p => p.id_procedimiento === props.procedimientoId)) }}
-            </p>
-            <p class="text-caption text-truncate">
-              UNIDAD:
-              {{
-                props.unidadesIds?.length > 0
-                  ? mppStore.unidades.find(u => u.id_unidad === props.unidadesIds[0])?.nombre_unidad
-                  : "Sin asignar"
-              }}
-            </p>
-            <p class="text-caption text-truncate">
-              RESP:
-              {{
-                mppStore.cargos.find(c => c.id_cargo === props.cargoId)?.nombre || "Sin asignar"
-              }}
-            </p>
+          
+          <v-card variant="flat" class="bg-primary-lighten-5 rounded-lg pa-3 border-s-lg border-primary">
+            <!-- Jerarquía Principal -->
+            <div class="mb-3">
+                <p class="text-caption font-weight-black mb-0 text-uppercase d-flex align-center">
+                    <v-icon size="14" class="mr-1">mdi-hexagon-multiple</v-icon> PROCESO
+                </p>
+                <p class="text-body-2 font-weight-medium mb-1 line-clamp-1">{{ getItemTitle(mppStore.procesos.find(p => p.id_proceso === props.procesoId)) }}</p>
+                
+                <p class="text-caption font-weight-black mb-0 text-uppercase d-flex align-center text-primary">
+                    <v-icon size="14" class="mr-1">mdi-file-edit</v-icon> PROCEDIMIENTO
+                </p>
+                <p class="text-body-2 font-weight-bold line-clamp-1">{{ getItemTitle(currentProcedimiento) }}</p>
+            </div>
+
+            <v-divider class="mb-3 opacity-20"></v-divider>
+
+            <!-- Roles y Normativa -->
+            <v-row dense class="mb-2">
+                <v-col cols="6">
+                    <p class="text-tiny font-weight-black text-primary mb-0">UNIDAD</p>
+                    <p class="text-caption text-truncate">{{ mppStore.unidades.find(u => u.id_unidad === props.unidadesIds[0])?.nombre_unidad || 'Múltiples' }}</p>
+                </v-col>
+                <v-col cols="6">
+                    <p class="text-tiny font-weight-black text-primary mb-0">RESPONSABLE</p>
+                    <p class="text-caption text-truncate">{{ mppStore.cargos.find(c => c.id_cargo === props.cargoId)?.nombre || 'Sin asignar' }}</p>
+                </v-col>
+                <v-col cols="12" v-if="linkedNormativa">
+                    <p class="text-tiny font-weight-black text-primary mb-0">NORMATIVA</p>
+                    <p class="text-caption d-flex align-center text-truncate">
+                        <v-icon size="12" class="mr-1">mdi-gavel</v-icon> {{ linkedNormativa.nombre }}
+                    </p>
+                </v-col>
+            </v-row>
+
+            <!-- Detalles Técnicos -->
+            <div class="technical-details bg-white bg-opacity-50 rounded pa-2 mt-2">
+                <div class="mb-1" v-if="currentProcedimiento?.periodicidad">
+                    <p class="text-tiny font-weight-bold mb-0">PERIODICIDAD:</p>
+                    <p class="text-tiny">{{ currentProcedimiento.periodicidad }}</p>
+                </div>
+                <div class="mb-1" v-if="currentProcedimiento?.objetivos">
+                    <p class="text-tiny font-weight-bold mb-0">OBJETIVOS:</p>
+                    <p class="text-tiny line-clamp-2" :title="currentProcedimiento.objetivos">{{ currentProcedimiento.objetivos }}</p>
+                </div>
+                <div v-if="currentProcedimiento?.alcance">
+                    <p class="text-tiny font-weight-bold mb-0">ALCANCE:</p>
+                    <p class="text-tiny line-clamp-2" :title="currentProcedimiento.alcance">{{ currentProcedimiento.alcance }}</p>
+                </div>
+            </div>
           </v-card>
         </div>
 
@@ -576,6 +609,8 @@ const stopResizing = () => {
 .designer-layout {
   display: flex;
 }
+.text-tiny { font-size: 0.7rem; line-height: 1.1; }
+.line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mpp-node-container {
   padding: 14px;
   border: 2.5px solid #6366f1;

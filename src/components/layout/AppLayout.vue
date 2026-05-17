@@ -9,9 +9,32 @@ import { useAuthStore } from "../../stores/auth";
 
 const authStore = useAuthStore();
 const drawer = ref(true);
+const sidebarWidth = ref(260);
+const isResizing = ref(false);
 
 const handleLogout = () => {
   authStore.logout();
+};
+
+const startResizing = () => {
+  isResizing.value = true;
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", stopResizing);
+};
+
+const handleMouseMove = (e) => {
+  if (isResizing.value) {
+    const newWidth = e.clientX;
+    if (newWidth > 200 && newWidth < 500) {
+      sidebarWidth.value = newWidth;
+    }
+  }
+};
+
+const stopResizing = () => {
+  isResizing.value = false;
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", stopResizing);
 };
 </script>
 <template>
@@ -59,7 +82,7 @@ const handleLogout = () => {
     </v-app-bar>
 
     <!-- Sidebar de navegación -->
-    <v-navigation-drawer v-model="drawer" app width="260">
+    <v-navigation-drawer v-model="drawer" app :width="sidebarWidth">
       <div class="pa-2">
         <div class="sidebar-section-title">Menú</div>
         <v-list density="compact" nav>
@@ -96,6 +119,12 @@ const handleLogout = () => {
             ></v-list-item>
 
             <v-list-item
+              prepend-icon="mdi-sitemap"
+              title="Arquitectura de Procesos"
+              to="/mpp/gestion-mpp"
+            ></v-list-item>
+
+            <v-list-item
               prepend-icon="mdi-vector-polyline"
               title="Diseñador de Flujos"
               to="/mpp/diagrama-flujos"
@@ -113,6 +142,12 @@ const handleLogout = () => {
         <!-- Sección APPS -->
         <div class="sidebar-section-title">Sección</div>
       </div>
+
+      <!-- Resize Handle -->
+      <div
+        class="resize-handle"
+        @mousedown.stop="startResizing"
+      ></div>
 
       <!-- Usuario en el footer -->
 
@@ -147,4 +182,19 @@ const handleLogout = () => {
     </v-main>
   </v-app>
 </template>
-<style></style>
+<style scoped>
+.resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  transition: background-color 0.2s;
+}
+.resize-handle:hover {
+  background-color: rgba(var(--v-theme-primary), 0.3);
+}
+</style>
+
