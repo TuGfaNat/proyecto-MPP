@@ -4,63 +4,62 @@ Este proyecto es el cliente web para la gestión y diseño de manuales de proces
 
 ---
 
-## 🚀 Guía de Instalación
+## 🚀 Guía de Instalación (Paso a Paso)
 
-### Requisitos Previos
+### 0. Requisito Fundamental
+Este sistema es un cliente que consume datos. **Debes tener el Backend corriendo** (normalmente en el puerto `3000`) para que la interfaz muestre datos y permita guardar.
 
-- **Node.js** (v18 o superior)
-- **npm** o **pnpm**
+### 1. Requisitos Técnicos
+- **Node.js:** Versión 18 o superior (puedes verificar con `node -v`).
+- **Navegador:** Chrome, Edge o Firefox (versiones actualizadas).
 
-### Pasos para iniciar
+### 2. Pasos para iniciar
 
 1.  **Entrar a la carpeta del proyecto:**
     ```bash
     cd proyecto-MPP
     ```
-2.  **Instalar dependencias:**
+2.  **Instalar las dependencias (Librerías):**
     ```bash
     npm install
     ```
-3.  **Iniciar en modo desarrollo:**
+    *Esto creará la carpeta `node_modules`. Solo se hace la primera vez.*
+
+3.  **Configuración de la API (Backend):**
+    Por defecto, el sistema apunta a `http://localhost:3000`. Si tu backend usa otro puerto, debes actualizar las constantes `BASE_URL` en el archivo:
+    `src/stores/mpp_core.js`
+
+4.  **Iniciar el sistema:**
     ```bash
     npm run dev
     ```
-    > El sistema abrirá un servidor local (normalmente en `http://localhost:5173`).
+5.  **Abrir el navegador:**
+    Ve a la dirección que te indique la terminal (usualmente `http://localhost:5173`).
 
 ---
 
 ## 🏗️ Arquitectura y Tecnologías
-
-El frontend utiliza un stack moderno y reactivo:
-
-- **Vue 3 (Composition API):** Framework principal para la lógica de componentes.
-- **Vuetify 3:** Librería de componentes UI para una interfaz limpia y profesional.
-- **Pinia:** Gestión de estado global (Store) para la persistencia y sincronización de datos.
-- **VueFlow:** Motor gráfico utilizado en el **Diseñador de Matriz** para la creación de diagramas de flujo.
-- **Axios:** Cliente HTTP para la comunicación con el API.
-
----
+... (resto de la sección) ...
 
 ## 💡 Características Principales
-
-1.  **Motor CRUD Dinámico:** La interfaz no está estática; se adapta automáticamente a los metadatos y entidades recibidas del servidor.
-2.  **Persistencia Transparente:** Implementa un sistema de **Auto-Guardado (Debounce)**. Los cambios en formularios se sincronizan automáticamente tras breves pausas del usuario.
-3.  **Diseñador de Matriz Modular:** El componente `DisenadorMatriz.vue` permite la creación visual de flujos con detección inteligente de formas basadas en el contexto de la acción.
-4.  **Gestión Centralizada:** Los catálogos (Normativas, Cargos, Unidades) se gestionan mediante IDs y filtrado inteligente en tiempo real.
-
----
+... (resto de la sección) ...
 
 ## 🛠️ Comandos de Desarrollo
 
 | Comando           | Descripción                                                            |
 | :---------------- | :--------------------------------------------------------------------- |
-| `npm run dev`     | Inicia el servidor de desarrollo con Hot Reload.                       |
-| `npm run build`   | Genera los archivos optimizados para producción en la carpeta `dist/`. |
-| `npm run preview` | Previsualiza localmente la versión de producción generada.             |
+| `npm run dev`     | Inicia el servidor de desarrollo (Modo edición en vivo).               |
+| `npm run build`   | Prepara el sistema para ser subido a un servidor real.                 |
+| `npm run preview` | Prueba la versión final antes de subirla.                              |
+
+---
+
+## ⚠️ Notas de Integridad
+- **Persistencia Física:** El sistema no usa almacenamiento temporal en el navegador; todo se envía mediante orquestación de APIs a la base de datos SQL del backend.
+- **IDs Institucionales:** El sistema valida que cada operación esté vinculada a un proceso y procedimiento legalmente registrado.
 
 ---
 
 ## ⚖️ Licencia
-
 Este proyecto es de uso interno y confidencial del TIC FCPN.
-By TuGfaNat ☝🏻🤓
+By TuGfaNat ☝🏻🤓 y Gemini CLI 🤖
