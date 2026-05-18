@@ -21,7 +21,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const sistemasInformacion = ref([]);
     const documentosReferencia = ref([]);
 
-    // --- REGISTRO DE ESQUEMAS (Truth Discovery) ---
+    // --- REGISTRO DE ESQUEMAS ---
     const schemas = ref({
         proceso: {
             title: "Proceso",
@@ -64,13 +64,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         }
     });
 
-    const currentContext = ref({
-        unidad: null,
-        proceso: null,
-        subproceso: null,
-        procedimiento: null
-    });
-
+    const currentContext = ref({ unidad: null, proceso: null, subproceso: null, procedimiento: null });
     const loading = ref(false);
     const error = ref(null);
 
@@ -81,7 +75,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const BASE_URL_CAL = "http://localhost:3000/calidad";
     const BASE_URL_MOF = "http://localhost:3000/mof";
 
-    // --- LECTURA (GET) ---
+    // --- LECTURA ---
     const fetchAcciones = async () => {
         loading.value = true;
         try {
@@ -125,7 +119,6 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         try {
             const response = await axios.get(`${BASE_URL_MPP}/procedimientos`);
             const all = response.data.data || response.data;
-            // Filtro más permisivo
             procedimientos.value = all.filter(p => {
                 const pId = p.proceso?.id_proceso || p.id_proceso || p.proceso;
                 return Number(pId) === targetId;
@@ -167,80 +160,15 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         finally { loading.value = false; }
     };
 
-    // --- RECURSOS Y CALIDAD ---
-    const fetchRiesgos = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/riesgos`);
-            riesgos.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
+    const fetchRiesgos = () => axios.get(`${BASE_URL_REC}/riesgos`).then(r => riesgos.value = r.data.data || r.data);
+    const fetchControles = () => axios.get(`${BASE_URL_REC}/controles`).then(r => controles.value = r.data.data || r.data);
+    const fetchRequisitos = () => axios.get(`${BASE_URL_REC}/requisitos`).then(r => requisitos.value = r.data.data || r.data);
+    const fetchNormativas = () => axios.get(`${BASE_URL_CAL}/normativas`).then(r => normativas.value = r.data.data || r.data);
+    const fetchIndicadores = () => axios.get(`${BASE_URL_CAL}/indicadores`).then(r => indicadores.value = r.data.data || r.data);
+    const fetchEquipos = () => axios.get(`${BASE_URL_REC}/equipos`).then(r => equipos.value = r.data.data || r.data);
+    const fetchSistemasInformacion = () => axios.get(`${BASE_URL_REC}/sistemas-informacion`).then(r => sistemasInformacion.value = r.data.data || r.data);
+    const fetchDocumentosReferencia = () => axios.get(`${BASE_URL_REC}/documentos-referencia`).then(r => documentosReferencia.value = r.data.data || r.data);
 
-    const fetchControles = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/controles`);
-            controles.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchRequisitos = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/requisitos`);
-            requisitos.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchNormativas = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_CAL}/normativas`);
-            normativas.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchIndicadores = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_CAL}/indicadores`);
-            indicadores.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchEquipos = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/equipos`);
-            equipos.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchSistemasInformacion = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/sistemas-informacion`);
-            sistemasInformacion.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    const fetchDocumentosReferencia = async () => {
-        loading.value = true;
-        try {
-            const response = await axios.get(`${BASE_URL_REC}/documentos-referencia`);
-            documentosReferencia.value = response.data.data || response.data;
-        } catch (err) { error.value = err.message; }
-        finally { loading.value = false; }
-    };
-
-    // --- SINCRONIZACIÓN MOF ---
     const syncUnidades = async () => {
         try {
             const response = await axios.post(`${BASE_URL_MOF}/sync`);
@@ -255,7 +183,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         } catch (e) { console.error(e); return false; }
     };
 
-    // --- ESCRITURA (POST/PATCH/DELETE) ---
+    // --- ESCRITURA ---
     const saveProceso = (data) => axios.post(`${BASE_URL_MPP}/procesos`, data).then(r => r.data);
     const updateProceso = (id, data) => axios.patch(`${BASE_URL_MPP}/procesos/${id}`, data);
     const deleteProceso = (id) => axios.delete(`${BASE_URL_MPP}/procesos/${id}`);
@@ -305,37 +233,216 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         return true;
     };
 
-    // --- CRUD GENÉRICO (Chameleon Engine) ---
+    const saveMatrixRow = async (row, procedimientoId) => {
+        console.log(`[Store] saveMatrixRow iniciado para fila ${row.nro}`, { row, procedimientoId });
+        try {
+            const savedIds = row.savedIds || {};
+            const pId = Number(procedimientoId);
+
+            // 1. Operación
+            const opData = { id_procedimiento: pId, orden: Number(row.nro), salida: row.salida || "", plazo: Number(row.plazo || 0) };
+            let opId = savedIds.operacion ? Number(savedIds.operacion) : null;
+            if (opId) await axios.patch(`${BASE_URL_FLUX}/operaciones/${opId}`, opData);
+            else {
+                const res = await axios.post(`${BASE_URL_FLUX}/operaciones`, opData);
+                opId = Number(res.data.data?.id_operaciones || res.data.id_operaciones || res.data.id);
+            }
+
+            // 2. Actividad
+            const actData = { id_operaciones: opId, descripcion: row.actividad || "Sin descripción", orden: 1 };
+            let actId = savedIds.actividad ? Number(savedIds.actividad) : null;
+            if (actId) await axios.patch(`${BASE_URL_FLUX}/actividades/${actId}`, actData);
+            else {
+                const res = await axios.post(`${BASE_URL_FLUX}/actividades`, actData);
+                actId = Number(res.data.data?.id_actividad || res.data.id_actividad || res.data.id);
+            }
+
+            // 3. Tarea
+            let tareaId = savedIds.tarea ? Number(savedIds.tarea) : null;
+            if (row.accionId && actId) {
+                const tareaData = { id_actividad: actId, id_accion: Number(row.accionId), descripcion: (row.tarea || "Nueva Tarea").trim(), orden: 1 };
+                if (tareaId) await axios.patch(`${BASE_URL_FLUX}/tareas/${tareaId}`, tareaData);
+                else {
+                    const res = await axios.post(`${BASE_URL_FLUX}/tareas`, tareaData);
+                    tareaId = Number(res.data.data?.id_tarea || res.data.id_tarea || res.data.id);
+                }
+            } else if (tareaId) {
+                await axios.delete(`${BASE_URL_FLUX}/tareas/${tareaId}`).catch(() => {});
+                tareaId = null;
+            }
+
+            // 4. Responsable
+            let respId = savedIds.responsable ? Number(savedIds.responsable) : null;
+            if (row.responsableCargoId) {
+                const respData = { id_operacion: opId, id_cargo: Number(row.responsableCargoId), tipo_participacion: 'Responsable' };
+                if (respId) await axios.patch(`${BASE_URL_FLUX}/operacion-cargos/${respId}`, respData);
+                else {
+                    const res = await axios.post(`${BASE_URL_FLUX}/operacion-cargos`, respData);
+                    respId = Number(res.data.data?.id || res.data.id);
+                }
+            } else if (respId) {
+                await axios.delete(`${BASE_URL_FLUX}/operacion-cargos/${respId}`).catch(() => {});
+                respId = null;
+            }
+
+            // 5. Recursos (Riesgos, Controles, Requisitos, Referencia, Solicitante)
+            const saveResource = async (val, existingId, endpoint, extraData = {}) => {
+                try {
+                    if (val && val.trim()) {
+                        const data = { descripcion: val, id_operacion: opId, ...extraData };
+                        if (existingId && !isNaN(existingId)) {
+                            await axios.patch(`${BASE_URL_REC}/${endpoint}/${existingId}`, data);
+                            return Number(existingId);
+                        } else {
+                            const res = await axios.post(`${BASE_URL_REC}/${endpoint}`, data);
+                            const raw = res.data.data || res.data;
+                            // Intentar capturar cualquier variante de ID
+                            const newId = raw.id || raw[`id_${endpoint}`] || raw.id_requisitos || raw.id_riesgo || raw.id_control;
+                            console.log(`[Store] ${endpoint} creado con ID:`, newId);
+                            return Number(newId);
+                        }
+                    } else if (existingId && !isNaN(existingId)) {
+                        console.log(`[Store] Borrando ${endpoint} ID: ${existingId}`);
+                        await axios.delete(`${BASE_URL_REC}/${endpoint}/${existingId}`).catch(() => {});
+                    }
+                } catch (e) {
+                    console.error(`[Store] Error en saveResource (${endpoint}):`, e);
+                }
+                return null;
+            };
+
+            const riesgoId = await saveResource(row.riesgo, savedIds.riesgo, 'riesgos');
+            const controlId = await saveResource(row.control, savedIds.control, 'controles');
+            const requisitoId = await saveResource(row.requisitos, savedIds.requisito, 'requisitos', { tipo_entrada: 'entrada' });
+            const solicitanteId = await saveResource(row.solicitante, savedIds.solicitante, 'requisitos', { tipo_entrada: 'solicitante' });
+
+            // Referencia Especial (Nombre vs Descripcion)
+            let refId = savedIds.referencia ? Number(savedIds.referencia) : null;
+            if (row.referencia) {
+                const refData = { nombre: row.referencia, id_operaciones: [opId] };
+                if (refId) await axios.patch(`${BASE_URL_REC}/documentos-referencia/${refId}`, refData);
+                else {
+                    const res = await axios.post(`${BASE_URL_REC}/documentos-referencia`, refData);
+                    refId = Number(res.data.data?.id || res.data.id || res.data.id_documento_referencia);
+                }
+            } else if (refId) {
+                await axios.delete(`${BASE_URL_REC}/documentos-referencia/${refId}`).catch(() => {});
+                refId = null;
+            }
+
+            return { operacion: opId, actividad: actId, tarea: tareaId, responsable: respId, riesgo: riesgoId, control: controlId, requisito: requisitoId, referencia: refId, solicitante: solicitanteId };
+        } catch (err) { console.error("Error orquestando guardado:", err); throw err; }
+    };
+
+    const fetchMatrixData = async (procedimientoId) => {
+        console.log(`[Store] Iniciando fetchMatrixData para procedimiento ${procedimientoId}`);
+        loading.value = true;
+        try {
+            const pId = Number(procedimientoId);
+            const [opRes, actRes, tarRes, cargoRes, riesgosRes, controlesRes, reqRes, refRes] = await Promise.all([
+                axios.get(`${BASE_URL_FLUX}/operaciones`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_FLUX}/actividades`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_FLUX}/tareas`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_FLUX}/operacion-cargos`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_REC}/riesgos`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_REC}/controles`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_REC}/requisitos`).catch(() => ({ data: [] })),
+                axios.get(`${BASE_URL_REC}/documentos-referencia`).catch(() => ({ data: [] }))
+            ]);
+
+            const getData = (res) => {
+                const raw = res.data?.data || res.data || [];
+                return Array.isArray(raw) ? raw : [];
+            };
+
+            const allActs = getData(actRes);
+            const allTasks = getData(tarRes);
+            const allOpCargos = getData(cargoRes);
+            const allRiesgos = getData(riesgosRes);
+            const allControles = getData(controlesRes);
+            const allReqs = getData(reqRes);
+            const allRefs = getData(refRes);
+
+            const matrixOps = getData(opRes).filter(op => {
+                const opProcId = op.id_procedimiento || (op.procedimiento && (op.procedimiento.id_procedimiento || op.procedimiento.id));
+                return Number(opProcId) === pId;
+            });
+
+            const mappedRows = matrixOps.map(op => {
+                const idOp = Number(op.id_operaciones || op.id);
+                
+                // Helpers para extraer IDs de objetos de relacion del backend
+                const getOpId = (item) => Number(item?.id_operacion || item?.operacion?.id_operaciones || item?.operacion?.id);
+                const getActId = (item) => Number(item?.id_actividad || item?.actividad?.id_actividad || item?.actividad?.id);
+
+                const actividad = allActs.find(a => Number(a.id_operaciones || a.operacion?.id_operaciones) === idOp) || {};
+                const idAct = Number(actividad.id_actividad || actividad.id);
+                
+                const tarea = idAct ? (allTasks.find(t => getActId(t) === idAct) || {}) : {};
+                const responsable = allOpCargos.find(oc => getOpId(oc) === idOp && oc.tipo_participacion === 'Responsable') || {};
+                const riesgo = allRiesgos.find(r => getOpId(r) === idOp) || {};
+                const control = allControles.find(c => getOpId(c) === idOp) || {};
+                
+                const todosReqs = allReqs.filter(req => getOpId(req) === idOp);
+                const reqEntrada = todosReqs.find(req => !req.tipo_entrada || req.tipo_entrada === 'entrada') || {};
+                const solicitanteReq = todosReqs.find(req => req.tipo_entrada === 'solicitante') || {};
+                const referencia = allRefs.find(ref => Array.isArray(ref.operaciones) && ref.operaciones.some(o => Number(o.id_operaciones || o.id) === idOp)) || {};
+
+                console.log(`[Store] Fila ${op.orden} -> R:${!!riesgo.id_riesgo}, C:${!!control.id_control}, T:${!!tarea.id_tarea}, S:${!!solicitanteReq.id_requisitos}`);
+
+                return {
+                    id: `db-${idOp}`, nro: op.orden || 1, requisitos: reqEntrada.descripcion || "", actividad: actividad.descripcion || "",
+                    tarea: tarea.descripcion || "", referencia: referencia.nombre || "", solicitante: solicitanteReq.descripcion || "",
+                    riesgo: riesgo.descripcion || "", control: control.descripcion || "",
+                    salida: op.salida || "", plazo: op.plazo || 0, accionId: tarea.id_accion || null, responsableCargoId: responsable.id_cargo || null,
+                    status: 'idle',
+                    savedIds: {
+                        operacion: idOp, actividad: idAct || null, tarea: tarea.id_tarea || null, responsable: responsable.id || null,
+                        riesgo: riesgo.id_riesgo || null, control: control.id_control || null, requisito: reqEntrada.id_requisitos || null,
+                        referencia: referencia.id_documento_referencia || null, solicitante: solicitanteReq.id_requisitos || null
+                    }
+                };
+            });
+
+            return mappedRows.sort((a, b) => a.nro - b.nro);
+        } catch (err) { console.error("[Store] Fallo en carga:", err); return []; }
+        finally { loading.value = false; }
+    };
+
+    const deleteMatrixRow = async (savedIds) => {
+        try {
+            if (!savedIds || !savedIds.operacion) return;
+            const opId = savedIds.operacion;
+            if (savedIds.riesgo) await axios.delete(`${BASE_URL_REC}/riesgos/${savedIds.riesgo}`).catch(() => {});
+            if (savedIds.control) await axios.delete(`${BASE_URL_REC}/controles/${savedIds.control}`).catch(() => {});
+            if (savedIds.requisito) await axios.delete(`${BASE_URL_REC}/requisitos/${savedIds.requisito}`).catch(() => {});
+            if (savedIds.solicitante) await axios.delete(`${BASE_URL_REC}/requisitos/${savedIds.solicitante}`).catch(() => {});
+            if (savedIds.referencia) await axios.delete(`${BASE_URL_REC}/documentos-referencia/${savedIds.referencia}`).catch(() => {});
+            if (savedIds.responsable) await axios.delete(`${BASE_URL_FLUX}/operacion-cargos/${savedIds.responsable}`).catch(() => {});
+            if (savedIds.tarea) await axios.delete(`${BASE_URL_FLUX}/tareas/${savedIds.tarea}`).catch(() => {});
+            if (savedIds.actividad) await axios.delete(`${BASE_URL_FLUX}/actividades/${savedIds.actividad}`).catch(() => {});
+            await axios.delete(`${BASE_URL_FLUX}/operaciones/${opId}`);
+            return true;
+        } catch (err) { throw err; }
+    };
+
     const saveEntity = async (type, data) => {
         const schema = schemas.value[type];
-        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
-        
-        // Determinar URL base
-        let baseUrl = BASE_URL_MPP;
-        if (schema.endpoints.save === "normativas") baseUrl = BASE_URL_CAL;
-        
-        const response = await axios.post(`${baseUrl}/${schema.endpoints.save}`, data);
-        return response.data.data || response.data;
+        let baseUrl = schema.endpoints.save === "normativas" ? BASE_URL_CAL : BASE_URL_MPP;
+        const res = await axios.post(`${baseUrl}/${schema.endpoints.save}`, data);
+        return res.data.data || res.data;
     };
 
     const updateEntity = async (type, id, data) => {
         const schema = schemas.value[type];
-        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
-        
-        let baseUrl = BASE_URL_MPP;
-        if (schema.endpoints.update === "normativas") baseUrl = BASE_URL_CAL;
-        
-        const response = await axios.patch(`${baseUrl}/${schema.endpoints.update}/${id}`, data);
-        return response.data.data || response.data;
+        let baseUrl = schema.endpoints.update === "normativas" ? BASE_URL_CAL : BASE_URL_MPP;
+        const res = await axios.patch(`${baseUrl}/${schema.endpoints.update}/${id}`, data);
+        return res.data.data || res.data;
     };
 
     const deleteEntity = async (type, id) => {
         const schema = schemas.value[type];
-        if (!schema) throw new Error(`Esquema no encontrado: ${type}`);
-        
-        let baseUrl = BASE_URL_MPP;
-        if (schema.endpoints.save === "normativas") baseUrl = BASE_URL_CAL;
-        
+        let baseUrl = schema.endpoints.save === "normativas" ? BASE_URL_CAL : BASE_URL_MPP;
         return await axios.delete(`${baseUrl}/${schema.endpoints.save}/${id}`);
     };
 
@@ -357,6 +464,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         saveSistemaInformacion, updateSistemaInformacion, deleteSistemaInformacion,
         saveAccion, updateAccion, deleteAccion,
         saveFlujoCompleto,
+        saveMatrixRow, fetchMatrixData, deleteMatrixRow,
         saveEntity, updateEntity, deleteEntity
     };
 });
