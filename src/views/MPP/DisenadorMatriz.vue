@@ -18,6 +18,7 @@ const isHydrating = ref(false);
 const lastSaved = ref(null);
 const snackbar = ref({ show: false, text: "", color: "success" });
 const showLaneManager = ref(false);
+const showPreview = ref(false);
 const unitSearch = ref("");
 const selectedUnitId = ref(null);
 
@@ -47,6 +48,7 @@ const rows = ref([
     requisitos: "",
     actividad: "",
     tarea: "",
+    texto_figura: "",
     referencia: "",
     riesgo: "",
     control: "",
@@ -140,7 +142,7 @@ watch(
       if (!oldRow) {
         console.log(`[MatrixUI] Fila ${row.nro} es nueva o inicial.`);
       } else {
-        const fieldsToWatch = ['actividad', 'tarea', 'accionId', 'responsableCargoId', 'riesgo', 'control', 'requisitos', 'referencia', 'solicitante', 'salida', 'plazo'];
+        const fieldsToWatch = ['actividad', 'tarea', 'texto_figura', 'accionId', 'responsableCargoId', 'riesgo', 'control', 'requisitos', 'referencia', 'solicitante', 'salida', 'plazo'];
         const changedField = fieldsToWatch.find(f => row[f] !== oldRow[f]);
 
         if (!changedField) return;
@@ -230,6 +232,7 @@ const addRow = () => {
     requisitos: "",
     actividad: "",
     tarea: "",
+    texto_figura: "",
     referencia: "",
     riesgo: "",
     control: "",
@@ -294,6 +297,7 @@ const removeRow = async (index) => {
       requisitos: "",
       actividad: "",
       tarea: "",
+      texto_figura: "",
       referencia: "",
       riesgo: "",
       control: "",
@@ -319,22 +323,25 @@ const removeRow = async (index) => {
 // --- LÓGICA DE FIGURAS DINÁMICAS ---
 const getActionVisuals = (accionId) => {
   const accion = mppStore.acciones.find((a) => a.id_accion === accionId);
-  if (!accion) return { icon: "mdi-checkbox-blank-circle", color: "primary" };
+  if (!accion || !accion.figura) return { icon: "mdi-checkbox-blank-circle", color: "primary", colorHex: "#6366f1", codigoFigura: "rectangulo" };
 
-  const nombre = (accion.nombre_accion || "").toLowerCase();
+  const codigoFigura = accion.figura.codigo;
+  const nombreAccion = (accion.nombre_accion || "").toLowerCase();
 
-  if (nombre.includes("inicio"))
-    return { icon: "mdi-play-circle", color: "success" };
-  if (nombre.includes("fin"))
-    return { icon: "mdi-stop-circle", color: "error" };
-  if (
-    nombre.includes("decisión") ||
-    nombre.includes("validar") ||
-    nombre.includes("aprob")
-  )
-    return { icon: "mdi-rhombus", color: "orange-darken-2" };
+  // Color basado en semántica del nombre
+  let color = "primary";
+  let colorHex = "#6366f1";
+  if (nombreAccion.includes("inicio")) { color = "success"; colorHex = "#10b981"; }
+  else if (nombreAccion.includes("fin")) { color = "error"; colorHex = "#ef4444"; }
+  else if (nombreAccion.includes("decisión") || nombreAccion.includes("validar") || nombreAccion.includes("aprob")) { color = "orange-darken-2"; colorHex = "#f59e0b"; }
 
-  return { icon: "mdi-checkbox-blank-circle", color: "primary" };
+  // Icono basado en el código de la figura del backend
+  let icon = "mdi-circle";
+  if (codigoFigura === "circulo") icon = "mdi-circle";
+  else if (codigoFigura === "rectangulo") icon = "mdi-rectangle";
+  else if (codigoFigura === "rombo") icon = "mdi-rhombus";
+
+  return { icon, color, colorHex, codigoFigura };
 };
 
 const toggleCargo = (cId) => {
@@ -348,6 +355,7 @@ onMounted(async () => {
   try {
     if (!mppStore.unidades.length) await mppStore.fetchUnidades();
     if (!mppStore.acciones.length) await mppStore.fetchAcciones();
+    if (!mppStore.figuras.length) await mppStore.fetchFiguras();
     if (!mppStore.procedimientos.length) await mppStore.fetchProcedimientos();
     if (!mppStore.procesos.length) await mppStore.fetchProcesos();
 
@@ -406,6 +414,15 @@ onMounted(async () => {
         }}</span>
       </div>
       <v-spacer></v-spacer>
+
+      <v-btn
+        variant="tonal"
+        color="secondary"
+        @click="showPreview = true"
+        prepend-icon="mdi-eye-outline"
+        class="mr-2"
+        >Vista Previa Flujo</v-btn
+      >
 
       <v-btn
         variant="tonal"
@@ -535,8 +552,8 @@ onMounted(async () => {
             <td>
               <textarea
                 v-model="row.tarea"
-                class="cell-textarea"
-                placeholder="..."
+                class="cell-textarea font-weight-medium"
+                placeholder="Descripción de la tarea..."
                 @input="adjustHeight"
               ></textarea>
             </td>
@@ -804,6 +821,45 @@ onMounted(async () => {
       </v-card>
     </v-dialog>
 
+    <!-- DIÁLOGO DE PREVISUALIZACIÓN -->
+    <v-dialog v-model="showPreview" max-width="1000">
+      <v-card class="rounded-xl overflow-hidden">
+        <v-toolbar color="secondary" dark density="compact">
+          <v-toolbar-title class="text-subtitle-1 font-weight-bold"
+            >VISTA PREVIA DEL DIAGRAMA (NODOS Y TEXTO FIGURA)</v-toolbar-title
+          >
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" @click="showPreview = false"></v-btn>
+        </v-toolbar>
+
+        <div class="pa-8 bg-grey-lighten-4 overflow-y-auto" style="max-height: 70vh">
+          <div class="d-flex flex-column align-center">
+            <template v-for="(row, idx) in rows" :key="row.id">
+              <div class="preview-node-container d-flex flex-column align-center mb-4">
+                <!-- NODO VISUAL -->
+                <div 
+                  class="preview-node d-flex align-center justify-center text-center pa-4"
+                  :class="getActionVisuals(row.accionId).codigoFigura"
+                  :style="{ backgroundColor: getActionVisuals(row.accionId).colorHex }"
+                >
+                  <span class="preview-text font-weight-bold">{{ row.texto_figura || row.tarea || 'Sin texto' }}</span>
+                </div>
+                
+                <!-- FLECHA CONECTORA -->
+                <v-icon v-if="idx < rows.length - 1" color="grey" class="mt-2">mdi-arrow-down</v-icon>
+              </div>
+            </template>
+          </div>
+        </div>
+        
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-spacer></v-spacer>
+          <v-btn color="secondary" variant="elevated" @click="showPreview = false">Volver a la Matriz</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color">{{
       snackbar.text
     }}</v-snackbar>
@@ -947,5 +1003,51 @@ onMounted(async () => {
 }
 .uppercase {
   text-transform: uppercase;
+}
+
+.texto-figura-input :deep(.v-field__input) {
+  font-size: 0.55rem !important;
+  min-height: 20px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  color: #64748b !important;
+}
+.texto-figura-input :deep(.v-label) {
+  font-size: 0.5rem !important;
+}
+
+/* ESTILOS DE PREVISUALIZACIÓN */
+.preview-node {
+  min-width: 150px;
+  min-height: 60px;
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.preview-text {
+  font-size: 0.75rem;
+  line-height: 1.1;
+  max-width: 140px;
+}
+
+/* Formas Geométricas */
+.rectangulo {
+  border-radius: 4px;
+}
+
+.circulo {
+  border-radius: 50%;
+  min-width: 80px;
+  min-height: 80px;
+}
+
+.rombo {
+  transform: rotate(45deg);
+  min-width: 100px;
+  min-height: 100px;
+}
+.rombo .preview-text {
+  transform: rotate(-45deg);
 }
 </style>

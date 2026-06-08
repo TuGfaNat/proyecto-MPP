@@ -9,6 +9,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const procedimientos = ref([]);
     const cargoProcesos = ref([]);
     const acciones = ref([]);
+    const figuras = ref([]); 
     const pasos = ref([]); 
     const operaciones = ref([]); 
     
@@ -18,6 +19,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const normativas = ref([]);
     const indicadores = ref([]);
     const equipos = ref([]);
+    const instalaciones = ref([]);
     const sistemasInformacion = ref([]);
     const documentosReferencia = ref([]);
 
@@ -45,7 +47,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
                 { key: "periodicidad", label: "Periodicidad", type: "text" },
                 { key: "version", label: "Versión", type: "text", default: "1.0" },
                 { key: "estado", label: "Estado", type: "select", options: ["Activo", "Inactivo", "En Revisión"], default: "Activo" },
-                { key: "id_instalaciones", label: "Instalaciones", type: "select-multiple", optionsSource: "unidades", itemTitle: "nombre", itemValue: "id_unidad" }
+                { key: "id_instalaciones", label: "Instalaciones", type: "select-multiple", optionsSource: "instalaciones", itemTitle: "nombre", itemValue: "id_instalacion" }
             ],
             endpoints: { save: "procedimientos", update: "procedimientos", fetch: "procedimientos" }
         },
@@ -61,6 +63,15 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
             ],
             endpoints: { save: "normativas", update: "normativas", fetch: "normativas" },
             parentLink: { key: "id_procedimientos", type: "array" }
+        },
+        accion: {
+            title: "Acción / Verbo",
+            icon: "mdi-play-network-outline",
+            fields: [
+                { key: "nombre_accion", label: "Nombre de la Acción (Verbo)", type: "text", required: true },
+                { key: "id_figura", label: "Figura Visual", type: "select", optionsSource: "figuras", itemTitle: "nombre", itemValue: "id_figura", required: true }
+            ],
+            endpoints: { save: "acciones", update: "acciones", fetch: "acciones" }
         }
     });
 
@@ -85,11 +96,29 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
         finally { loading.value = false; }
     };
 
+    const fetchFiguras = async () => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_FLUX}/figuras`);
+            figuras.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
     const fetchUnidades = async () => {
         loading.value = true;
         try {
             const response = await axios.get(`${BASE_URL_ORG}/unidades`);
             unidades.value = response.data.data || response.data;
+        } catch (err) { error.value = err.message; }
+        finally { loading.value = false; }
+    };
+
+    const fetchInstalaciones = async () => {
+        loading.value = true;
+        try {
+            const response = await axios.get(`${BASE_URL_ORG}/instalaciones`);
+            instalaciones.value = response.data.data || response.data;
         } catch (err) { error.value = err.message; }
         finally { loading.value = false; }
     };
@@ -106,7 +135,7 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     const fetchProcesos = async () => {
         loading.value = true;
         try {
-            await fetchUnidades();
+            await Promise.all([fetchUnidades(), fetchInstalaciones()]);
             const response = await axios.get(`${BASE_URL_MPP}/procesos`);
             procesos.value = response.data.data || response.data;
         } catch (err) { error.value = err.message; }
@@ -260,7 +289,13 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
             // 3. Tarea
             let tareaId = savedIds.tarea ? Number(savedIds.tarea) : null;
             if (row.accionId && actId) {
-                const tareaData = { id_actividad: actId, id_accion: Number(row.accionId), descripcion: (row.tarea || "Nueva Tarea").trim(), orden: 1 };
+                const tareaData = { 
+                    id_actividad: actId, 
+                    id_accion: Number(row.accionId), 
+                    descripcion: (row.tarea || "Nueva Tarea").trim(), 
+                    texto_figura: (row.texto_figura || row.tarea || "Nueva Tarea").trim(),
+                    orden: 1 
+                };
                 if (tareaId) await axios.patch(`${BASE_URL_FLUX}/tareas/${tareaId}`, tareaData);
                 else {
                     const res = await axios.post(`${BASE_URL_FLUX}/tareas`, tareaData);
@@ -388,11 +423,9 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
                 const solicitanteReq = todosReqs.find(req => req.tipo_entrada === 'solicitante') || {};
                 const referencia = allRefs.find(ref => Array.isArray(ref.operaciones) && ref.operaciones.some(o => Number(o.id_operaciones || o.id) === idOp)) || {};
 
-                console.log(`[Store] Fila ${op.orden} -> R:${!!riesgo.id_riesgo}, C:${!!control.id_control}, T:${!!tarea.id_tarea}, S:${!!solicitanteReq.id_requisitos}`);
-
                 return {
                     id: `db-${idOp}`, nro: op.orden || 1, requisitos: reqEntrada.descripcion || "", actividad: actividad.descripcion || "",
-                    tarea: tarea.descripcion || "", referencia: referencia.nombre || "", solicitante: solicitanteReq.descripcion || "",
+                    tarea: tarea.descripcion || "", texto_figura: tarea.texto_figura || tarea.descripcion || "", referencia: referencia.nombre || "", solicitante: solicitanteReq.descripcion || "",
                     riesgo: riesgo.descripcion || "", control: control.descripcion || "",
                     salida: op.salida || "", plazo: op.plazo || 0, accionId: tarea.id_accion || null, responsableCargoId: responsable.id_cargo || null,
                     status: 'idle',
@@ -447,11 +480,11 @@ export const useMppCoreStore = defineStore("mpp_core", () => {
     };
 
     return {
-        unidades, cargos, procesos, procedimientos, cargoProcesos, pasos, operaciones, acciones,
-        riesgos, controles, requisitos, normativas, indicadores, equipos, sistemasInformacion, documentosReferencia,
+        unidades, cargos, procesos, procedimientos, cargoProcesos, pasos, operaciones, acciones, figuras,
+        riesgos, controles, requisitos, normativas, indicadores, equipos, instalaciones, sistemasInformacion, documentosReferencia,
         currentContext, loading, error, schemas,
-        fetchUnidades, fetchRiesgos, fetchControles, fetchRequisitos, fetchNormativas, fetchIndicadores, fetchEquipos, fetchSistemasInformacion, fetchDocumentosReferencia,
-        syncUnidades, syncCargos, fetchCargos, fetchProcesos, fetchProcedimientos, fetchCargoProcesos, fetchOperaciones, fetchPasos, fetchAcciones,
+        fetchUnidades, fetchRiesgos, fetchControles, fetchRequisitos, fetchNormativas, fetchIndicadores, fetchEquipos, fetchInstalaciones, fetchSistemasInformacion, fetchDocumentosReferencia,
+        syncUnidades, syncCargos, fetchCargos, fetchProcesos, fetchProcedimientos, fetchCargoProcesos, fetchOperaciones, fetchPasos, fetchAcciones, fetchFiguras,
         saveProceso, updateProceso, deleteProceso,
         saveProcedimiento, updateProcedimiento, deleteProcedimiento,
         saveCargoProceso, updateCargoProceso, deleteCargoProceso,

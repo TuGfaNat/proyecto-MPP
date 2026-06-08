@@ -3,7 +3,6 @@ import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import { useMppCoreStore } from "@/stores/mpp_core";
 import { rules } from "@/utils/rules";
 import DisenadorMatriz from "./DisenadorMatriz.vue";
-import SpotlightGuide from "@/components/SpotlightGuide.vue";
 
 const mppStore = useMppCoreStore();
 
@@ -62,18 +61,6 @@ const resourceData = ref({
 });
 
 const snackbar = ref({ show: false, text: "", color: "success" });
-
-// --- LÓGICA DE SPOTLIGHT (GUÍA RÁPIDA ILUSTRADA) ---
-const showSpotlight = ref(true); // Se activa al entrar
-const guide = {
-  title: "Arquitectura Operativa",
-  subtitle: "Configuración de Cabecera",
-  desc: "Este módulo permite establecer la estructura formal de los Procesos y Procedimientos. Aquí definirá el contexto de origen, designará a los responsables técnicos y vinculará el marco normativo vigente para garantizar la validez legal del proceso.",
-  icon: "mdi-file-document-edit-outline",
-  color: "primary"
-};
-
-// Eliminar el watch(step) que activaba el spotlight en cada paso
 
 // --- TIMERS ---
 let debounceTimer = null;
@@ -581,16 +568,6 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-
-    <!-- SPOTLIGHT REUTILIZABLE -->
-    <SpotlightGuide
-      v-model="showSpotlight"
-      :title="guide.title"
-      :subtitle="guide.subtitle"
-      :desc="guide.desc"
-      :icon="guide.icon"
-      :color="guide.color"
-    />
 
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">{{ snackbar.text }}</v-snackbar>
   </v-container>
